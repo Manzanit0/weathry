@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -57,6 +58,7 @@ func TelegramAuth() gin.HandlerFunc {
 		}
 
 		if !strings.EqualFold(r.Message.Chat.Username, "manzanit0") {
+			log.Printf("unauthorised user: %s", r.Message.Chat.Username)
 			c.JSON(http.StatusUnauthorized, gin.H{})
 			return
 		}
