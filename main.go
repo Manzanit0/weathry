@@ -2,10 +2,14 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
+
+const CtxKeyPayload = "gin.ctx.payload"
 
 func main() {
 	r := gin.Default()
@@ -15,10 +19,79 @@ func main() {
 		})
 	})
 
+	r.Use(TelegramAuth())
+	r.POST("/telegram/webhook", func(c *gin.Context) {
+		var p *WebhookRequest
+
+		if i, ok := c.Get(CtxKeyPayload); ok {
+			p = i.(*WebhookRequest)
+		} else {
+			panic("how did we get here without the payload?")
+		}
+
+		c.JSON(200, gin.H{
+			"method":  "sendMessage",
+			"chat_id": p.Message.From.ID,
+			"text":    fmt.Sprintf("hey %s!", p.Message.Chat.Username),
+		})
+	})
+
 	var port string
 	if port = os.Getenv("PORT"); port == "" {
 		port = "8080"
 	}
 
-	r.Run(fmt.Sprintf(":%s", port))
+	if err := r.Run(fmt.Sprintf(":%s", port)); err != nil {
+		panic(err)
+	}
+}
+
+func TelegramAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var r WebhookRequest
+		if err := c.ShouldBindJSON(&r); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Errorf("payload does not conform with telegram contract: %w", err).Error(),
+			})
+			return
+		}
+
+		if !strings.EqualFold(r.Message.Chat.Username, "manzanit0") {
+			c.JSON(http.StatusUnauthorized, gin.H{})
+			return
+		}
+
+		c.Set(CtxKeyPayload, &r)
+		c.Next()
+	}
+}
+
+type WebhookRequest struct {
+	UpdateID int     `json:"update_id"`
+	Message  Message `json:"message"`
+}
+
+type From struct {
+	ID           int    `json:"id"`
+	IsBot        bool   `json:"is_bot"`
+	FirstName    string `json:"first_name"`
+	LastName     string `json:"last_name"`
+	Username     string `json:"username"`
+	LanguageCode string `json:"language_code"`
+}
+
+type Chat struct {
+	ID        int    `json:"id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Username  string `json:"username"`
+	Type      string `json:"type"`
+}
+
+type Message struct {
+	MessageID int    `json:"message_id"`
+	From      From   `json:"from"`
+	Chat      Chat   `json:"chat"`
+	Date      int    `json:"date"`
+	Text      string `json:"text"`
 }
