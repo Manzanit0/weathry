@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/manzanit0/weathry/pkg/location"
 	"github.com/manzanit0/weathry/pkg/weather"
 )
 
@@ -20,7 +21,13 @@ func main() {
 		panic("missing OPENWEATHERMAP_API_KEY environment variable. Please check your environment.")
 	}
 
+	var positionStackAPIKey string
+	if positionStackAPIKey = os.Getenv("POSITIONSTACK_API_KEY"); positionStackAPIKey == "" {
+		panic("missing POSITIONSTACK_API_KEY environment variable. Please check your environment.")
+	}
+
 	owmClient := weather.NewOpenWeatherMapClient(&http.Client{Timeout: 5 * time.Second}, openWeatherMapAPIKey)
+	psClient := location.NewPositionStackClient(&http.Client{Timeout: 5 * time.Second}, positionStackAPIKey)
 
 	r := gin.Default()
 	r.GET("/ping", func(c *gin.Context) {
@@ -40,13 +47,26 @@ func main() {
 		}
 
 		if strings.Contains(p.Message.Text, "/today") {
-			forecast, err := owmClient.GetCurrentWeatherByCoordinates(51.536830, -0.225043)
+			strs := strings.Split(p.Message.Text, " ")
+			query := strings.Join(strs[1:], " ")
+
+			log.Printf("fetching location for %s\n", query)
+			location, err := psClient.FindLocation(query)
 			if err != nil {
+				log.Printf("error: %s\n", err.Error())
 				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
 				return
 			}
 
-			c.JSON(200, webhookResponse(p, fmt.Sprintf("it's %s", forecast.Description)))
+			log.Printf("fetching weather for %s\n", location.Name)
+			forecast, err := owmClient.GetCurrentWeatherByCoordinates(location.Latitude, location.Longitude)
+			if err != nil {
+				log.Printf("error: %s\n", err.Error())
+				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
+				return
+			}
+
+			c.JSON(200, webhookResponse(p, fmt.Sprintf("it's %s in %s", forecast.Description, location.Name)))
 			return
 		}
 

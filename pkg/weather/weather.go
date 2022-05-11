@@ -15,6 +15,7 @@ type Coordinates struct {
 	Latitude  float64
 	Longitude float64
 }
+
 type Forecast struct {
 	Coordinates        Coordinates
 	Location           string
