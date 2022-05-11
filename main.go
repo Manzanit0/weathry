@@ -42,25 +42,15 @@ func main() {
 		if strings.Contains(p.Message.Text, "/today") {
 			forecast, err := owmClient.GetCurrentWeatherByCoordinates(51.536830, -0.225043)
 			if err != nil {
-				c.JSON(200, gin.H{
-					"method":  "sendMessage",
-					"chat_id": p.Message.From.ID,
-					"text":    fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error()),
-				})
+				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
+				return
 			}
 
-			c.JSON(200, gin.H{
-				"method":  "sendMessage",
-				"chat_id": p.Message.From.ID,
-				"text":    fmt.Sprintf("it's %s", forecast.Description),
-			})
+			c.JSON(200, webhookResponse(p, fmt.Sprintf("it's %s", forecast.Description)))
+			return
 		}
 
-		c.JSON(200, gin.H{
-			"method":  "sendMessage",
-			"chat_id": p.Message.From.ID,
-			"text":    fmt.Sprintf("hey %s!", p.Message.Chat.Username),
-		})
+		c.JSON(200, webhookResponse(p, fmt.Sprintf("hey %s!", p.Message.Chat.Username)))
 	})
 
 	var port string
@@ -70,6 +60,14 @@ func main() {
 
 	if err := r.Run(fmt.Sprintf(":%s", port)); err != nil {
 		panic(err)
+	}
+}
+
+func webhookResponse(p *WebhookRequest, text string) gin.H {
+	return gin.H{
+		"method":  "sendMessage",
+		"chat_id": p.Message.From.ID,
+		"text":    text,
 	}
 }
 
