@@ -6,13 +6,22 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/manzanit0/weathry/pkg/weather"
 )
 
 const CtxKeyPayload = "gin.ctx.payload"
 
 func main() {
+	var openWeatherMapAPIKey string
+	if openWeatherMapAPIKey = os.Getenv("OPENWEATHERMAP_API_KEY"); openWeatherMapAPIKey == "" {
+		panic("missing OPENWEATHERMAP_API_KEY environment variable. Please check your environment.")
+	}
+
+	owmClient := weather.NewOpenWeatherMapClient(&http.Client{Timeout: 5 * time.Second}, openWeatherMapAPIKey)
+
 	r := gin.Default()
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -28,6 +37,23 @@ func main() {
 			p = i.(*WebhookRequest)
 		} else {
 			panic("how did we get here without the payload?")
+		}
+
+		if strings.Contains(p.Message.Text, "/today") {
+			forecast, err := owmClient.GetCurrentWeatherByCoordinates(51.536830, -0.225043)
+			if err != nil {
+				c.JSON(200, gin.H{
+					"method":  "sendMessage",
+					"chat_id": p.Message.From.ID,
+					"text":    fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error()),
+				})
+			}
+
+			c.JSON(200, gin.H{
+				"method":  "sendMessage",
+				"chat_id": p.Message.From.ID,
+				"text":    fmt.Sprintf("it's %s", forecast.Description),
+			})
 		}
 
 		c.JSON(200, gin.H{
