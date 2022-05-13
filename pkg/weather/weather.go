@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 )
 
 type Client interface {
@@ -27,6 +28,14 @@ type Forecast struct {
 	Humidity           int
 	WindSpeed          float64
 	DateTimeTS         int
+}
+
+func (f *Forecast) IsRainy() bool {
+	return f.Condition == "rain" || f.Condition == "storm"
+}
+
+func (f *Forecast) FormattedDateTime() string {
+	return time.Unix(int64(f.DateTimeTS), 0).Format(time.RFC1123)
 }
 
 func NewOpenWeatherMapClient(h *http.Client, apiKey string) Client {

@@ -92,7 +92,9 @@ func main() {
 	go func() {
 		defer close(pingDone)
 		log.Printf("starting pinger")
-		if err := pings.MonitorWeather(ctx); err != nil {
+
+		pinger := pings.NewBackgroundPinger(owmClient, psClient)
+		if err := pinger.MonitorWeather(ctx); err != nil {
 			if errors.Is(err, context.Canceled) {
 				log.Printf("pinger ended gracefully")
 				return
@@ -126,10 +128,10 @@ func main() {
 		log.Fatal("server forced to shutdown: ", err)
 	}
 
-	log.Println("server exited")
+	log.Printf("server exited")
 
 	<-pingDone
-	log.Println("pinger exited")
+	log.Printf("pinger exited")
 }
 
 func webhookResponse(p *WebhookRequest, text string) gin.H {
@@ -199,7 +201,7 @@ func BuildMessage(f []*weather.Forecast) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("Weather Report for %s", f[0].Location))
 	for _, v := range f {
-		ts := time.Unix(int64(v.DateTimeTS), 0).Format(time.RFC1123)
+		ts := v.FormattedDateTime()
 		sb.WriteString(fmt.Sprintf(`
 - - - - - - - - - - - - - - - - - - - - - -
 📅 %s
