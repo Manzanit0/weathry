@@ -59,14 +59,14 @@ func main() {
 			}
 
 			log.Printf("fetching weather for %s\n", location.Name)
-			forecast, err := owmClient.GetCurrentWeather(location.Latitude, location.Longitude)
+			forecasts, err := owmClient.GetUpcomingWeather(location.Latitude, location.Longitude)
 			if err != nil {
 				log.Printf("error: %s\n", err.Error())
 				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
 				return
 			}
 
-			c.JSON(200, webhookResponse(p, fmt.Sprintf("it's %s in %s", forecast.Description, location.Name)))
+			c.JSON(200, webhookResponse(p, BuildMessage(forecasts)))
 			return
 		}
 
@@ -140,4 +140,36 @@ type Message struct {
 	Chat      Chat   `json:"chat"`
 	Date      int    `json:"date"`
 	Text      string `json:"text"`
+}
+
+func BuildMessage(f []*weather.Forecast) string {
+	if len(f) == 0 {
+		return "hey, not sure why but I couldn't get any forecasts ¯\\_(ツ)_/¯"
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Weather Report for %s", f[0].Location))
+	for _, v := range f {
+		ts := time.Unix(int64(v.DateTimeTS), 0).Format(time.RFC1123)
+		sb.WriteString(fmt.Sprintf(`
+- - - - - - - - - - - - - - - - - - - - - -
+📅 %s
+
+TLDR:
+🏷 %s
+
+Temperature:
+❄️ %0.2f°C
+🔥 %0.2fºC
+
+Wind:
+💨 %0.2f m/s
+
+Humidity:
+💧 %d%%`, ts, v.Description, v.MinimumTemperature, v.MaximumTemperature, v.WindSpeed, v.Humidity))
+	}
+
+	sb.WriteString("\n- - - - - - - - - - - - - - - - - - - - - -")
+
+	return sb.String()
 }
