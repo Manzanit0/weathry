@@ -8,7 +8,8 @@ import (
 )
 
 type Client interface {
-	GetCurrentWeatherByCoordinates(lat, lon float64) (*Forecast, error)
+	GetCurrentWeather(lat, lon float64) (*Forecast, error)
+	GetUpcomingWeather(lat, lon float64) ([]*Forecast, error)
 }
 
 type Coordinates struct {
@@ -37,7 +38,16 @@ type owm struct {
 	apiKey string
 }
 
-func (c *owm) GetCurrentWeatherByCoordinates(lat, lon float64) (*Forecast, error) {
+func (c *owm) GetCurrentWeather(lat, lon float64) (*Forecast, error) {
+	forecasts, err := c.GetUpcomingWeather(lat, lon)
+	if err != nil {
+		return nil, err
+	}
+
+	return forecasts[0], nil
+}
+
+func (c *owm) GetUpcomingWeather(lat, lon float64) ([]*Forecast, error) {
 	endpoint := fmt.Sprintf("/data/2.5/forecast/daily/?lat=%f&lon=%f&units=metric&lang=es", lat, lon)
 	url := fmt.Sprintf("http://api.openweathermap.org%s&appid=%s", endpoint, c.apiKey)
 
@@ -57,18 +67,22 @@ func (c *owm) GetCurrentWeatherByCoordinates(lat, lon float64) (*Forecast, error
 		return nil, err
 	}
 
-	f := d.DaysList[0]
-	return &Forecast{
-		Coordinates:        Coordinates{lat, lon},
-		Location:           fmt.Sprintf("%s (%s)", d.City.Name, d.City.Country),
-		Description:        f.Weather[0].Description,
-		MinimumTemperature: f.Temperature.Min,
-		MaximumTemperature: f.Temperature.Max,
-		Humidity:           f.Humidity,
-		WindSpeed:          f.Speed,
-		DateTimeTS:         f.DateTimeTS,
-		Condition:          d.Condition(),
-	}, nil
+	var forecasts []*Forecast
+	for _, v := range d.DaysList {
+		forecasts = append(forecasts, &Forecast{
+			Coordinates:        Coordinates{lat, lon},
+			Location:           fmt.Sprintf("%s (%s)", d.City.Name, d.City.Country),
+			Description:        v.Weather[0].Description,
+			MinimumTemperature: v.Temperature.Min,
+			MaximumTemperature: v.Temperature.Max,
+			Humidity:           v.Humidity,
+			WindSpeed:          v.Speed,
+			DateTimeTS:         v.DateTimeTS,
+			Condition:          d.Condition(),
+		})
+	}
+
+	return forecasts, nil
 }
 
 type DailyWeatherResponse struct {

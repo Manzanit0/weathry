@@ -59,7 +59,7 @@ func main() {
 			}
 
 			log.Printf("fetching weather for %s\n", location.Name)
-			forecast, err := owmClient.GetCurrentWeatherByCoordinates(location.Latitude, location.Longitude)
+			forecast, err := owmClient.GetCurrentWeather(location.Latitude, location.Longitude)
 			if err != nil {
 				log.Printf("error: %s\n", err.Error())
 				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
