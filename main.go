@@ -1,15 +1,20 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/manzanit0/weathry/pkg/location"
+	"github.com/manzanit0/weathry/pkg/pings"
 	"github.com/manzanit0/weathry/pkg/weather"
 )
 
@@ -78,9 +83,53 @@ func main() {
 		port = "8080"
 	}
 
-	if err := r.Run(fmt.Sprintf(":%s", port)); err != nil {
-		panic(err)
+	// background job to ping users on weather changes
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	pingDone := make(chan struct{})
+
+	go func() {
+		defer close(pingDone)
+		log.Printf("starting pinger")
+		if err := pings.MonitorWeather(ctx); err != nil {
+			if errors.Is(err, context.Canceled) {
+				log.Printf("pinger ended gracefully")
+				return
+			}
+
+			log.Printf("pinger ended abruptly")
+			stop()
+		}
+	}()
+
+	srv := &http.Server{Addr: fmt.Sprintf(":%s", port), Handler: r}
+	go func() {
+		log.Printf("starting server")
+
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("server stopped abruptly: %s\n", err)
+		} else {
+			log.Printf("server ended gracefully")
+		}
+
+		stop()
+	}()
+
+	// Listen for OS interrupt
+	<-ctx.Done()
+	stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatal("server forced to shutdown: ", err)
 	}
+
+	log.Println("server exited")
+
+	<-pingDone
+	log.Println("pinger exited")
 }
 
 func webhookResponse(p *WebhookRequest, text string) gin.H {
