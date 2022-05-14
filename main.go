@@ -32,6 +32,11 @@ func main() {
 		panic("missing POSITIONSTACK_API_KEY environment variable. Please check your environment.")
 	}
 
+	var telegramBotToken string
+	if telegramBotToken = os.Getenv("TELEGRAM_BOT_TOKEN"); telegramBotToken == "" {
+		panic("missing TELEGRAM_BOT_TOKEN environment variable. Please check your environment.")
+	}
+
 	owmClient := weather.NewOpenWeatherMapClient(&http.Client{Timeout: 5 * time.Second}, openWeatherMapAPIKey)
 	psClient := location.NewPositionStackClient(&http.Client{Timeout: 5 * time.Second}, positionStackAPIKey)
 
@@ -94,7 +99,8 @@ func main() {
 		defer close(pingDone)
 		log.Printf("starting pinger")
 
-		pinger := pings.NewBackgroundPinger(owmClient, psClient)
+		tgramClient := tgram.NewClient(&http.Client{Timeout: 5 * time.Second}, telegramBotToken)
+		pinger := pings.NewBackgroundPinger(owmClient, psClient, tgramClient)
 		if err := pinger.MonitorWeather(ctx); err != nil {
 			if errors.Is(err, context.Canceled) {
 				log.Printf("pinger ended gracefully")
