@@ -52,7 +52,7 @@ func (p *backgroundPinger) MonitorWeather(ctx context.Context) error {
 
 				if forecast != nil {
 					var message string
-					if time.Unix(int64(forecast.DateTimeTS), 0).Day() == time.Now().Day() {
+					if isToday(forecast.DateTimeTS) {
 						message = "Heads up, it's going to be raining today!"
 					} else {
 						message = fmt.Sprintf("It will be raining next %s.", forecast.FormattedDateTime())
@@ -91,9 +91,25 @@ func (p *backgroundPinger) FindNextRainyDay() (*weather.Forecast, error) {
 
 	for _, f := range forecasts {
 		if f.IsRainy() {
+			// We only want to get today if it's early morning. If we're
+			// checking after lunch, might as well check upcoming days.
+			if isTodayPastLunchTime(f.DateTimeTS) {
+				continue
+			}
+
 			return f, nil
 		}
 	}
 
 	return nil, nil
+}
+
+func isTodayPastLunchTime(unix int) bool {
+	t := time.Unix(int64(unix), 0)
+	return t.Day() == time.Now().Day() && t.Hour() >= 15
+}
+
+func isToday(unix int) bool {
+	t := time.Unix(int64(unix), 0)
+	return t.Day() == time.Now().Day()
 }
