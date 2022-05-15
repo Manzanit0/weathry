@@ -58,21 +58,16 @@ func (p *backgroundPinger) MonitorWeather(ctx context.Context) error {
 						message = fmt.Sprintf("It will be raining next %s.", forecast.FormattedDateTime())
 					}
 
-					// TODO: might want some alerting here and maybe end application?
-					var chatID string
-					if chatID = os.Getenv("MY_TELEGRAM_CHAT_ID"); chatID == "" {
-						log.Printf("failed get chat ID from MY_TELEGRAM_CHAT_ID OS enviroment variable")
-						continue
-					}
-
-					chatIDint, err := strconv.ParseInt(chatID, 10, 64)
+					chatID, err := getChatIDFromEnv()
 					if err != nil {
-						log.Printf("failed to parse MY_TELEGRAM_CHAT_ID as integer: %s", err.Error())
+						// TODO: might want some alerting here and maybe end application?
+						log.Print(err.Error())
+						continue
 					}
 
 					err = p.t.SendMessage(tgram.SendMessageRequest{
 						Text:   message,
-						ChatID: chatIDint,
+						ChatID: chatID,
 					})
 					if err != nil {
 						log.Printf("failed to send rainy update to telegram: %s", err.Error())
@@ -112,4 +107,18 @@ func isTodayPastLunchTime(unix int) bool {
 func isToday(unix int) bool {
 	t := time.Unix(int64(unix), 0)
 	return t.Day() == time.Now().Day()
+}
+
+func getChatIDFromEnv() (int64, error) {
+	var chatID string
+	if chatID = os.Getenv("MY_TELEGRAM_CHAT_ID"); chatID == "" {
+		return 0, fmt.Errorf("failed get chat ID from MY_TELEGRAM_CHAT_ID OS enviroment variable")
+	}
+
+	chatIDint, err := strconv.ParseInt(chatID, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse MY_TELEGRAM_CHAT_ID as integer: %s", err.Error())
+	}
+
+	return chatIDint, nil
 }

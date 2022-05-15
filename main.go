@@ -61,18 +61,18 @@ func main() {
 			strs := strings.Split(p.Message.Text, " ")
 			query := strings.Join(strs[1:], " ")
 
-			log.Printf("fetching location for %s\n", query)
+			log.Printf("fetching location for %s", query)
 			location, err := psClient.FindLocation(query)
 			if err != nil {
-				log.Printf("error: %s\n", err.Error())
+				log.Printf("error: %s", err.Error())
 				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
 				return
 			}
 
-			log.Printf("fetching weather for %s\n", location.Name)
+			log.Printf("fetching weather for %s", location.Name)
 			forecasts, err := owmClient.GetUpcomingWeather(location.Latitude, location.Longitude)
 			if err != nil {
-				log.Printf("error: %s\n", err.Error())
+				log.Printf("error: %s", err.Error())
 				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
 				return
 			}
@@ -117,7 +117,7 @@ func main() {
 		log.Printf("starting server")
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server stopped abruptly: %s\n", err)
+			log.Fatalf("server stopped abruptly: %s", err)
 		} else {
 			log.Printf("server ended gracefully")
 		}
