@@ -88,7 +88,7 @@ func (p *backgroundPinger) FindNextRainyDay() (*weather.Forecast, error) {
 		if f.IsRainy() {
 			// We only want to get today if it's early morning. If we're
 			// checking after lunch, might as well check upcoming days.
-			if isTodayPastLunchTime(f.DateTimeTS) {
+			if isToday(f.DateTimeTS) && isNowPastLunchTime() {
 				continue
 			}
 
@@ -99,14 +99,13 @@ func (p *backgroundPinger) FindNextRainyDay() (*weather.Forecast, error) {
 	return nil, nil
 }
 
-func isTodayPastLunchTime(unix int) bool {
-	t := time.Unix(int64(unix), 0)
-	return t.Day() == time.Now().Day() && t.Hour() >= 15
-}
-
 func isToday(unix int) bool {
 	t := time.Unix(int64(unix), 0)
 	return t.Day() == time.Now().Day()
+}
+
+func isNowPastLunchTime() bool {
+	return time.Now().Hour() > 15
 }
 
 func getChatIDFromEnv() (int64, error) {
