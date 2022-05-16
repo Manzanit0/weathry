@@ -48,41 +48,7 @@ func main() {
 	})
 
 	r.Use(TelegramAuth())
-	r.POST("/telegram/webhook", func(c *gin.Context) {
-		var p *tgram.WebhookRequest
-
-		if i, ok := c.Get(CtxKeyPayload); ok {
-			p = i.(*tgram.WebhookRequest)
-		} else {
-			panic("how did we get here without the payload?")
-		}
-
-		if strings.Contains(p.Message.Text, "/today") {
-			strs := strings.Split(p.Message.Text, " ")
-			query := strings.Join(strs[1:], " ")
-
-			log.Printf("fetching location for %s", query)
-			location, err := psClient.FindLocation(query)
-			if err != nil {
-				log.Printf("error: %s", err.Error())
-				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
-				return
-			}
-
-			log.Printf("fetching weather for %s", location.Name)
-			forecasts, err := owmClient.GetUpcomingWeather(location.Latitude, location.Longitude)
-			if err != nil {
-				log.Printf("error: %s", err.Error())
-				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
-				return
-			}
-
-			c.JSON(200, webhookResponse(p, BuildMessage(forecasts)))
-			return
-		}
-
-		c.JSON(200, webhookResponse(p, fmt.Sprintf("hey %s!", p.Message.Chat.Username)))
-	})
+	r.POST("/telegram/webhook", telegramWebhookController(psClient, owmClient))
 
 	var port string
 	if port = os.Getenv("PORT"); port == "" {
@@ -200,4 +166,42 @@ Humidity:
 	sb.WriteString("\n- - - - - - - - - - - - - - - - - - - - - -")
 
 	return sb.String()
+}
+
+func telegramWebhookController(locClient location.Client, weatherClient weather.Client) func(c *gin.Context) {
+	return func(c *gin.Context) {
+		var p *tgram.WebhookRequest
+
+		if i, ok := c.Get(CtxKeyPayload); ok {
+			p = i.(*tgram.WebhookRequest)
+		} else {
+			panic("how did we get here without the payload?")
+		}
+
+		if strings.Contains(p.Message.Text, "/today") {
+			strs := strings.Split(p.Message.Text, " ")
+			query := strings.Join(strs[1:], " ")
+
+			log.Printf("fetching location for %s", query)
+			location, err := locClient.FindLocation(query)
+			if err != nil {
+				log.Printf("error: %s", err.Error())
+				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
+				return
+			}
+
+			log.Printf("fetching weather for %s", location.Name)
+			forecasts, err := weatherClient.GetUpcomingWeather(location.Latitude, location.Longitude)
+			if err != nil {
+				log.Printf("error: %s", err.Error())
+				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
+				return
+			}
+
+			c.JSON(200, webhookResponse(p, BuildMessage(forecasts)))
+			return
+		}
+
+		c.JSON(200, webhookResponse(p, fmt.Sprintf("hey %s!", p.Message.Chat.Username)))
+	}
 }
