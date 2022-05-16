@@ -42,40 +42,46 @@ func (p *backgroundPinger) MonitorWeather(ctx context.Context) error {
 			return ctx.Err()
 		case <-ticker.C:
 			h, m, _ := time.Now().Clock()
-			// FIXME: deploys may fuck up this mechanic: if a deploy happens exactly at hh:00... might miss the message.
+			// FIXME: deploys may fuck up this mechanic: if a deploy happens
+			// exactly at h:00... might miss the message.
 			if m == 0 && (h == 19 || h == 8) {
-				forecast, err := p.FindNextRainyDay()
+				err := p.PingRainyForecasts()
 				if err != nil {
-					log.Printf("error checking rain: %s", err.Error())
-					continue
-				}
-
-				if forecast != nil {
-					var message string
-					if isToday(forecast.DateTimeTS) {
-						message = "Heads up, it's going to be raining today!"
-					} else {
-						message = fmt.Sprintf("It will be raining next %s.", forecast.FormattedDateTime())
-					}
-
-					chatID, err := getChatIDFromEnv()
-					if err != nil {
-						// TODO: might want some alerting here and maybe end application?
-						log.Print(err.Error())
-						continue
-					}
-
-					err = p.t.SendMessage(tgram.SendMessageRequest{
-						Text:   message,
-						ChatID: chatID,
-					})
-					if err != nil {
-						log.Printf("failed to send rainy update to telegram: %s", err.Error())
-					}
+					log.Print(err.Error())
 				}
 			}
 		}
 	}
+}
+
+func (p *backgroundPinger) PingRainyForecasts() error {
+	forecast, err := p.FindNextRainyDay()
+	if err != nil {
+		return fmt.Errorf("error requesting next rainy day: %w", err)
+	}
+
+	if forecast != nil {
+		return nil
+	}
+
+	var message string
+	if isToday(forecast.DateTimeTS) {
+		message = "Heads up, it's going to be raining today!"
+	} else {
+		message = fmt.Sprintf("It will be raining next %s.", forecast.FormattedDateTime())
+	}
+
+	chatID, err := getChatIDFromEnv()
+	if err != nil {
+		return fmt.Errorf("unexpected error getting chat_id from environment: %w", err)
+	}
+
+	err = p.t.SendMessage(tgram.SendMessageRequest{Text: message, ChatID: chatID})
+	if err != nil {
+		return fmt.Errorf("failed to send rainy update to telegram: %w", err)
+	}
+
+	return nil
 }
 
 func (p *backgroundPinger) FindNextRainyDay() (*weather.Forecast, error) {
