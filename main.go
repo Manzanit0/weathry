@@ -107,7 +107,7 @@ func main() {
 				return
 			}
 
-			log.Printf("pinger ended abruptly")
+			log.Printf("pinger ended abruptly: %s", err.Error())
 			stop()
 		}
 	}()
@@ -117,7 +117,7 @@ func main() {
 		log.Printf("starting server")
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server stopped abruptly: %s", err)
+			log.Printf("server ended abruptly: %s", err.Error())
 		} else {
 			log.Printf("server ended gracefully")
 		}
