@@ -22,23 +22,20 @@ import (
 const CtxKeyPayload = "gin.ctx.payload"
 
 func main() {
-	var openWeatherMapAPIKey string
-	if openWeatherMapAPIKey = os.Getenv("OPENWEATHERMAP_API_KEY"); openWeatherMapAPIKey == "" {
-		panic("missing OPENWEATHERMAP_API_KEY environment variable. Please check your environment.")
+	owmClient, err := newWeatherClient()
+	if err != nil {
+		panic(err)
 	}
 
-	var positionStackAPIKey string
-	if positionStackAPIKey = os.Getenv("POSITIONSTACK_API_KEY"); positionStackAPIKey == "" {
-		panic("missing POSITIONSTACK_API_KEY environment variable. Please check your environment.")
+	psClient, err := newLocationClient()
+	if err != nil {
+		panic(err)
 	}
 
-	var telegramBotToken string
-	if telegramBotToken = os.Getenv("TELEGRAM_BOT_TOKEN"); telegramBotToken == "" {
-		panic("missing TELEGRAM_BOT_TOKEN environment variable. Please check your environment.")
+	tgramClient, err := newTelegramClient()
+	if err != nil {
+		panic(err)
 	}
-
-	owmClient := weather.NewOpenWeatherMapClient(&http.Client{Timeout: 5 * time.Second}, openWeatherMapAPIKey)
-	psClient := location.NewPositionStackClient(&http.Client{Timeout: 5 * time.Second}, positionStackAPIKey)
 
 	r := gin.Default()
 	r.GET("/ping", func(c *gin.Context) {
@@ -50,11 +47,6 @@ func main() {
 	r.Use(TelegramAuth())
 	r.POST("/telegram/webhook", telegramWebhookController(psClient, owmClient))
 
-	var port string
-	if port = os.Getenv("PORT"); port == "" {
-		port = "8080"
-	}
-
 	// background job to ping users on weather changes
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -65,7 +57,6 @@ func main() {
 		defer close(pingDone)
 		log.Printf("starting pinger")
 
-		tgramClient := tgram.NewClient(&http.Client{Timeout: 5 * time.Second}, telegramBotToken)
 		pinger := pings.NewBackgroundPinger(owmClient, psClient, tgramClient)
 		if err := pinger.MonitorWeather(ctx); err != nil {
 			if errors.Is(err, context.Canceled) {
@@ -77,6 +68,11 @@ func main() {
 			stop()
 		}
 	}()
+
+	var port string
+	if port = os.Getenv("PORT"); port == "" {
+		port = "8080"
+	}
 
 	srv := &http.Server{Addr: fmt.Sprintf(":%s", port), Handler: r}
 	go func() {
@@ -204,4 +200,31 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 
 		c.JSON(200, webhookResponse(p, fmt.Sprintf("hey %s!", p.Message.Chat.Username)))
 	}
+}
+
+func newWeatherClient() (weather.Client, error) {
+	var openWeatherMapAPIKey string
+	if openWeatherMapAPIKey = os.Getenv("OPENWEATHERMAP_API_KEY"); openWeatherMapAPIKey == "" {
+		return nil, fmt.Errorf("missing OPENWEATHERMAP_API_KEY environment variable. Please check your environment.")
+	}
+
+	return weather.NewOpenWeatherMapClient(&http.Client{Timeout: 5 * time.Second}, openWeatherMapAPIKey), nil
+}
+
+func newLocationClient() (location.Client, error) {
+	var positionStackAPIKey string
+	if positionStackAPIKey = os.Getenv("POSITIONSTACK_API_KEY"); positionStackAPIKey == "" {
+		return nil, fmt.Errorf("missing POSITIONSTACK_API_KEY environment variable. Please check your environment.")
+	}
+
+	return location.NewPositionStackClient(&http.Client{Timeout: 5 * time.Second}, positionStackAPIKey), nil
+}
+
+func newTelegramClient() (tgram.Client, error) {
+	var telegramBotToken string
+	if telegramBotToken = os.Getenv("TELEGRAM_BOT_TOKEN"); telegramBotToken == "" {
+		return nil, fmt.Errorf("missing TELEGRAM_BOT_TOKEN environment variable. Please check your environment.")
+	}
+
+	return tgram.NewClient(&http.Client{Timeout: 5 * time.Second}, telegramBotToken), nil
 }
