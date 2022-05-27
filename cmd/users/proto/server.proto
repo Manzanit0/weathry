@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package server;
+option go_package = "github.com/manzanit0/weathry/cmd/users/proto/server";
+
+// The greeting service definition
+service Users {
+  // Sends a greeting
+  rpc Create (CreateRequest) returns (CreateResponse) {}
+}
+
+// The request message containing the user's data
+message CreateRequest {
+  int64 telegram_chat_id = 1;
+  string username = 2;
+  string first_name = 3;
+  string last_name = 4;
+  string language_code = 5;
+}
+
+message CreateResponse {}
