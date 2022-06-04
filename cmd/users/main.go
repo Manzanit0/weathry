@@ -38,8 +38,12 @@ func (s *server) Create(ctx context.Context, in *authserver.CreateRequest) (*aut
 }
 
 func main() {
-	// Create a listener on TCP port
-	lis, err := net.Listen("tcp", ":8080")
+	var port string
+	if port = os.Getenv("PORT"); port == "" {
+		port = "8080"
+	}
+
+	lis, err := net.Listen("tcp", port)
 	if err != nil {
 		log.Fatalln("Failed to listen:", err)
 	}
