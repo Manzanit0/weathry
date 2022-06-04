@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	_ "github.com/jackc/pgx/v4/stdlib"
-	authserver "github.com/manzanit0/weathry/cmd/users/proto/gen"
+	authserver "github.com/manzanit0/weathry/pkg/users/gen"
 )
 
 type server struct {

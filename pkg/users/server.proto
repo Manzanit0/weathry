@@ -1,7 +1,7 @@
 syntax = "proto3";
 
-package server;
-option go_package = "github.com/manzanit0/weathry/cmd/users/proto/server";
+package users;
+option go_package = "github.com/manzanit0/weathry/pkg/users";
 
 // The greeting service definition
 service Users {
