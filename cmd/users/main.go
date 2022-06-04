@@ -2,14 +2,17 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"net"
+	"os"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	_ "github.com/jackc/pgx/v4/stdlib"
 	authserver "github.com/manzanit0/weathry/cmd/users/proto/gen"
 )
 
@@ -41,25 +44,23 @@ func main() {
 		log.Fatalln("Failed to listen:", err)
 	}
 
+	db, err := sql.Open("pgx", fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", os.Getenv("PGUSER"), os.Getenv("PGPASSWORD"), os.Getenv("PGHOST"), os.Getenv("PGPORT"), os.Getenv("PGDATABASE")))
+	if err != nil {
+		panic(fmt.Errorf("unable to open db conn: %w", err))
+	}
+
+	defer func() {
+		err = db.Close()
+		if err != nil {
+			log.Println("error closing db connection: %w", err)
+		}
+	}()
+
 	// Create a gRPC server object
 	s := grpc.NewServer()
 	// Attach the Greeter service to the server
-	authserver.RegisterUsersServer(s, &server{})
+	authserver.RegisterUsersServer(s, &server{Users: UsersRepository{db}})
 	// Serve gRPC Server
 	log.Println("Serving gRPC on 0.0.0.0:8080")
 	log.Fatal(s.Serve(lis))
-}
-
-type User struct {
-	TelegramChatID int64
-	Username       string
-	FirstName      string
-	LastName       string
-	LanguageCode   string
-}
-
-type UsersRepository struct{}
-
-func (r *UsersRepository) Create(u User) (User, error) {
-	return u, nil
 }
