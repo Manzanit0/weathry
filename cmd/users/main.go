@@ -43,7 +43,7 @@ func main() {
 		port = "8080"
 	}
 
-	lis, err := net.Listen("tcp", port)
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
 	if err != nil {
 		log.Fatalln("Failed to listen:", err)
 	}
