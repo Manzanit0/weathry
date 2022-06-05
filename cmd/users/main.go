@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -22,16 +23,24 @@ type server struct {
 }
 
 func (s *server) Create(ctx context.Context, in *authserver.CreateRequest) (*authserver.CreateResponse, error) {
-	var u User
-	u.TelegramChatID = in.GetTelegramChatId()
-	u.FirstName = in.GetFirstName()
-	u.LastName = in.GetLastName()
-	u.Username = in.GetUsername()
-	u.LanguageCode = in.GetLanguageCode()
+	log.Println("Received grpc.UsersServer/Create")
+	u, err := s.Users.Find(ctx, fmt.Sprint(in.GetTelegramChatId()))
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("Unable to query for user: %s", err.Error()))
+	}
 
-	_, err := s.Users.Create(u)
-	if err != nil {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("Unable to create user: %s", err.Error()))
+	if errors.Is(err, sql.ErrNoRows) {
+		u = &User{}
+		u.TelegramChatID = in.GetTelegramChatId()
+		u.FirstName = in.GetFirstName()
+		u.LastName = in.GetLastName()
+		u.Username = in.GetUsername()
+		u.LanguageCode = in.GetLanguageCode()
+
+		_, err := s.Users.Create(ctx, *u)
+		if err != nil {
+			return nil, status.Error(codes.Internal, fmt.Sprintf("Unable to create user: %s", err.Error()))
+		}
 	}
 
 	return &authserver.CreateResponse{}, nil

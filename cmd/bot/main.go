@@ -16,7 +16,9 @@ import (
 	"github.com/manzanit0/weathry/pkg/location"
 	"github.com/manzanit0/weathry/pkg/pings"
 	"github.com/manzanit0/weathry/pkg/tgram"
+	users "github.com/manzanit0/weathry/pkg/users/gen"
 	"github.com/manzanit0/weathry/pkg/weather"
+	"google.golang.org/grpc"
 )
 
 const CtxKeyPayload = "gin.ctx.payload"
@@ -37,6 +39,13 @@ func main() {
 		panic(err)
 	}
 
+	usersClient, conn, err := newUsersClient()
+	if err != nil {
+		panic(err)
+	}
+
+	defer conn.Close()
+
 	r := gin.Default()
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -44,7 +53,7 @@ func main() {
 		})
 	})
 
-	r.Use(TelegramAuth())
+	r.Use(TelegramAuth(usersClient))
 	r.POST("/telegram/webhook", telegramWebhookController(psClient, owmClient))
 
 	// background job to ping users on weather changes
@@ -111,7 +120,7 @@ func webhookResponse(p *tgram.WebhookRequest, text string) gin.H {
 	}
 }
 
-func TelegramAuth() gin.HandlerFunc {
+func TelegramAuth(usersClient users.UsersClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var r tgram.WebhookRequest
 		if err := c.ShouldBindJSON(&r); err != nil {
@@ -128,6 +137,18 @@ func TelegramAuth() gin.HandlerFunc {
 		}
 
 		c.Set(CtxKeyPayload, &r)
+
+		_, err := usersClient.Create(c.Request.Context(), &users.CreateRequest{
+			TelegramChatId: int64(r.Message.From.ID),
+			Username:       r.Message.From.Username,
+			FirstName:      r.Message.From.FirstName,
+			LastName:       r.Message.From.LastName,
+			LanguageCode:   r.Message.From.LanguageCode,
+		})
+		if err != nil {
+			log.Printf("unable to track user: %s", err.Error())
+		}
+
 		c.Next()
 	}
 }
@@ -227,4 +248,20 @@ func newTelegramClient() (tgram.Client, error) {
 	}
 
 	return tgram.NewClient(&http.Client{Timeout: 5 * time.Second}, telegramBotToken), nil
+}
+
+func newUsersClient() (users.UsersClient, *grpc.ClientConn, error) {
+	var host string
+	if host = os.Getenv("USERS_SERVICE_HOST"); host == "" {
+		return nil, nil, fmt.Errorf("missing TELEGRAM_BOT_TOKEN environment variable. Please check your environment.")
+	}
+
+	var opts []grpc.DialOption
+	conn, err := grpc.Dial(host, opts...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to connect with users service: %w", err)
+	}
+
+	c := users.NewUsersClient(conn)
+	return c, conn, nil
 }
