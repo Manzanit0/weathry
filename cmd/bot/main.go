@@ -252,8 +252,8 @@ func newTelegramClient() (tgram.Client, error) {
 
 func newUsersClient() (users.UsersClient, *grpc.ClientConn, error) {
 	var host string
-	if host = os.Getenv("USERS_SERVICE_HOST"); host == "" {
-		return nil, nil, fmt.Errorf("missing TELEGRAM_BOT_TOKEN environment variable. Please check your environment.")
+	if host = os.Getenv("USER_SERVICE_HOST"); host == "" {
+		return nil, nil, fmt.Errorf("missing USER_SERVICE_HOST environment variable. Please check your environment.")
 	}
 
 	var opts []grpc.DialOption
