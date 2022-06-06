@@ -86,7 +86,7 @@ func main() {
 
 	srv := &http.Server{Addr: fmt.Sprintf(":%s", port), Handler: r}
 	go func() {
-		log.Printf("starting server")
+		log.Printf("serving HTTP on :%s", port)
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("server ended abruptly: %s", err.Error())
