@@ -74,6 +74,6 @@ func main() {
 	// Attach the Greeter service to the server
 	authserver.RegisterUsersServer(s, &server{Users: UsersRepository{db}})
 	// Serve gRPC Server
-	log.Println("Serving gRPC on 0.0.0.0:8080")
+	log.Println("Serving gRPC on 0.0.0.0:", port)
 	log.Fatal(s.Serve(lis))
 }
