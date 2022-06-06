@@ -52,7 +52,7 @@ func main() {
 		port = "8080"
 	}
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
+	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
 	if err != nil {
 		log.Fatalln("Failed to listen:", err)
 	}
@@ -74,6 +74,6 @@ func main() {
 	// Attach the Greeter service to the server
 	authserver.RegisterUsersServer(s, &server{Users: UsersRepository{db}})
 	// Serve gRPC Server
-	log.Println("Serving gRPC on 0.0.0.0:", port)
-	log.Fatal(s.Serve(lis))
+	log.Println("Serving gRPC on ", lis.Addr().String())
+	log.Fatal(s.Serve(lis)) // TODO: handle graceful shutdowns.
 }
