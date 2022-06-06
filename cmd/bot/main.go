@@ -19,6 +19,7 @@ import (
 	users "github.com/manzanit0/weathry/pkg/users/gen"
 	"github.com/manzanit0/weathry/pkg/weather"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const CtxKeyPayload = "gin.ctx.payload"
@@ -256,8 +257,7 @@ func newUsersClient() (users.UsersClient, *grpc.ClientConn, error) {
 		return nil, nil, fmt.Errorf("missing USER_SERVICE_HOST environment variable. Please check your environment.")
 	}
 
-	var opts []grpc.DialOption
-	conn, err := grpc.Dial(host, opts...)
+	conn, err := grpc.Dial(host, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to connect with users service: %w", err)
 	}
