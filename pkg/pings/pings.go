@@ -60,7 +60,7 @@ func (p *backgroundPinger) PingRainyForecasts() error {
 		return fmt.Errorf("error requesting next rainy day: %w", err)
 	}
 
-	if forecast != nil {
+	if forecast == nil {
 		return nil
 	}
 
