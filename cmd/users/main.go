@@ -32,10 +32,19 @@ func (s *server) Create(ctx context.Context, in *authserver.CreateRequest) (*aut
 	if errors.Is(err, sql.ErrNoRows) {
 		u = &User{}
 		u.TelegramChatID = in.GetTelegramChatId()
-		u.FirstName = in.GetFirstName()
-		u.LastName = in.GetLastName()
-		u.Username = in.GetUsername()
 		u.LanguageCode = in.GetLanguageCode()
+
+		if firstName := in.GetUsername(); firstName != "" {
+			u.FirstName = &firstName
+		}
+
+		if lastName := in.GetLastName(); lastName != "" {
+			u.LastName = &lastName
+		}
+
+		if username := in.GetUsername(); username != "" {
+			u.Username = &username
+		}
 
 		_, err := s.Users.Create(ctx, *u)
 		if err != nil {

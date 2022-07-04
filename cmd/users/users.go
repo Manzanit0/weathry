@@ -9,12 +9,12 @@ import (
 )
 
 type User struct {
-	TelegramChatID int64  `db:"chat_id"`
-	Username       string `db:"username"`
-	FirstName      string `db:"first_name"`
-	LastName       string `db:"last_name"`
-	LanguageCode   string `db:"language_code"`
-	IsBot          string `db:"is_bot"`
+	TelegramChatID int64   `db:"chat_id"`
+	Username       *string `db:"username"`
+	FirstName      *string `db:"first_name"`
+	LastName       *string `db:"last_name"`
+	LanguageCode   string  `db:"language_code"`
+	IsBot          string  `db:"is_bot"`
 }
 
 type UsersRepository struct {
