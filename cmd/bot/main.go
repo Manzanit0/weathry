@@ -1,8 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -17,10 +18,7 @@ import (
 	"github.com/manzanit0/weathry/pkg/location"
 	"github.com/manzanit0/weathry/pkg/pings"
 	"github.com/manzanit0/weathry/pkg/tgram"
-	users "github.com/manzanit0/weathry/pkg/users/gen"
 	"github.com/manzanit0/weathry/pkg/weather"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 const CtxKeyPayload = "gin.ctx.payload"
@@ -41,12 +39,10 @@ func main() {
 		panic(err)
 	}
 
-	usersClient, conn, err := newUsersClient()
+	usersClient, err := newUsersClient()
 	if err != nil {
 		panic(err)
 	}
-
-	defer conn.Close()
 
 	r := gin.Default()
 	r.GET("/ping", func(c *gin.Context) {
@@ -122,7 +118,7 @@ func webhookResponse(p *tgram.WebhookRequest, text string) gin.H {
 	}
 }
 
-func TelegramAuth(usersClient users.UsersClient) gin.HandlerFunc {
+func TelegramAuth(usersClient UsersClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var r tgram.WebhookRequest
 		if err := c.ShouldBindJSON(&r); err != nil {
@@ -140,12 +136,12 @@ func TelegramAuth(usersClient users.UsersClient) gin.HandlerFunc {
 
 		c.Set(CtxKeyPayload, &r)
 
-		_, err := usersClient.Create(c.Request.Context(), &users.CreateRequest{
-			TelegramChatId: int64(r.Message.From.ID),
-			Username:       r.Message.From.Username,
-			FirstName:      r.Message.From.FirstName,
-			LastName:       r.Message.From.LastName,
-			LanguageCode:   r.Message.From.LanguageCode,
+		err := usersClient.CreateUser(c.Request.Context(), CreateUserPayload{
+			ID:           fmt.Sprint(r.Message.From.ID),
+			Username:     &r.Message.From.Username,
+			FirstName:    &r.Message.From.FirstName,
+			LastName:     &r.Message.From.LastName,
+			LanguageCode: r.Message.From.LanguageCode,
 		})
 		if err != nil {
 			log.Printf("unable to track user: %s", err.Error())
@@ -252,17 +248,59 @@ func newTelegramClient() (tgram.Client, error) {
 	return tgram.NewClient(&http.Client{Timeout: 5 * time.Second}, telegramBotToken), nil
 }
 
-func newUsersClient() (users.UsersClient, *grpc.ClientConn, error) {
+func newUsersClient() (UsersClient, error) {
 	var host string
 	if host = os.Getenv("USER_SERVICE_HOST"); host == "" {
-		return nil, nil, fmt.Errorf("missing USER_SERVICE_HOST environment variable. Please check your environment.")
+		return nil, fmt.Errorf("missing USER_SERVICE_HOST environment variable. Please check your environment.")
 	}
 
-	conn, err := grpc.Dial(host, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})))
+	return NewUsersClient(host), nil
+}
+
+type UsersClient interface {
+	CreateUser(context.Context, CreateUserPayload) error
+}
+
+type CreateUserPayload struct {
+	ID           string
+	Username     *string `json:"username"`
+	FirstName    *string `json:"first_name"`
+	LastName     *string `json:"last_name"`
+	LanguageCode string  `json:"language_code"`
+	IsBot        string  `json:"is_bot"`
+}
+
+type usersClient struct {
+	host string
+	h    *http.Client
+}
+
+func NewUsersClient(host string) UsersClient {
+	h := &http.Client{Timeout: 10 * time.Second}
+	return &usersClient{host: host, h: h}
+}
+
+func (c *usersClient) CreateUser(ctx context.Context, req CreateUserPayload) error {
+	b, err := json.Marshal(req)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to connect with users service: %w", err)
+		return err
 	}
 
-	c := users.NewUsersClient(conn)
-	return c, conn, nil
+	body := bytes.NewBuffer(b)
+	resp, err := c.h.Post(fmt.Sprintf("%s/users/%s", c.host, req.ID), "application/json", body)
+	if err != nil {
+		return nil
+	}
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+		responseBody := &bytes.Buffer{}
+		_, err := responseBody.ReadFrom(resp.Body)
+		if err != nil {
+			return err
+		}
+
+		return fmt.Errorf("unexpected response: (%d) %s", resp.StatusCode, responseBody.String())
+	}
+
+	return nil
 }

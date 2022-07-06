@@ -6,66 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
+	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v4/stdlib"
-	authserver "github.com/manzanit0/weathry/pkg/users/gen"
 )
 
-type server struct {
-	authserver.UnimplementedUsersServer
-	Users UsersRepository
-}
-
-func (s *server) Create(ctx context.Context, in *authserver.CreateRequest) (*authserver.CreateResponse, error) {
-	log.Println("Received grpc.UsersServer/Create")
-	u, err := s.Users.Find(ctx, fmt.Sprint(in.GetTelegramChatId()))
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("Unable to query for user: %s", err.Error()))
-	}
-
-	if errors.Is(err, sql.ErrNoRows) {
-		u = &User{}
-		u.TelegramChatID = in.GetTelegramChatId()
-		u.LanguageCode = in.GetLanguageCode()
-
-		if firstName := in.GetUsername(); firstName != "" {
-			u.FirstName = &firstName
-		}
-
-		if lastName := in.GetLastName(); lastName != "" {
-			u.LastName = &lastName
-		}
-
-		if username := in.GetUsername(); username != "" {
-			u.Username = &username
-		}
-
-		_, err := s.Users.Create(ctx, *u)
-		if err != nil {
-			return nil, status.Error(codes.Internal, fmt.Sprintf("Unable to create user: %s", err.Error()))
-		}
-	}
-
-	return &authserver.CreateResponse{}, nil
-}
-
 func main() {
-	var port string
-	if port = os.Getenv("PORT"); port == "" {
-		port = "8080"
-	}
-
-	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
-	if err != nil {
-		log.Fatalln("Failed to listen:", err)
-	}
-
 	db, err := sql.Open("pgx", fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", os.Getenv("PGUSER"), os.Getenv("PGPASSWORD"), os.Getenv("PGHOST"), os.Getenv("PGPORT"), os.Getenv("PGDATABASE")))
 	if err != nil {
 		panic(fmt.Errorf("unable to open db conn: %w", err))
@@ -78,11 +29,76 @@ func main() {
 		}
 	}()
 
-	// Create a gRPC server object
-	s := grpc.NewServer()
-	// Attach the Greeter service to the server
-	authserver.RegisterUsersServer(s, &server{Users: UsersRepository{db}})
-	// Serve gRPC Server
-	log.Println("Serving gRPC on ", lis.Addr().String())
-	log.Fatal(s.Serve(lis)) // TODO: handle graceful shutdowns.
+	users := UsersRepository{db}
+
+	r := gin.Default()
+
+	r.GET("/ping", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "pong",
+		})
+	})
+
+	r.PUT("/users/:id", func(c *gin.Context) {
+		log.Println("Received PUT /users/:id")
+
+		u := User{}
+		err := c.BindJSON(&u)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		id := c.Param("id")
+		_, err = users.Find(c.Request.Context(), fmt.Sprint(id))
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		if errors.Is(err, sql.ErrNoRows) {
+			_, err = users.Create(c.Request.Context(), u)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+
+			c.JSON(http.StatusCreated, gin.H{"id": id})
+		}
+
+		c.JSON(http.StatusAccepted, gin.H{"id": id})
+	})
+
+	var port string
+	if port = os.Getenv("PORT"); port == "" {
+		port = "8080"
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	srv := &http.Server{Addr: fmt.Sprintf(":%s", port), Handler: r}
+	go func() {
+		log.Printf("serving HTTP on :%s", port)
+
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("server ended abruptly: %s", err.Error())
+		} else {
+			log.Printf("server ended gracefully")
+		}
+
+		stop()
+	}()
+
+	// Listen for OS interrupt
+	<-ctx.Done()
+	stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatal("server forced to shutdown: ", err)
+	}
+
+	log.Printf("server exited")
 }
