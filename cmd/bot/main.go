@@ -144,7 +144,9 @@ func TelegramAuth(usersClient UsersClient) gin.HandlerFunc {
 			LanguageCode: r.Message.From.LanguageCode,
 		})
 		if err != nil {
-			log.Printf("unable to track user: %s", err.Error())
+			log.Printf("unable to track user: %s\n", err.Error())
+		} else {
+			log.Printf("user tracked: %s\n", r.Message.Chat.Username)
 		}
 
 		c.Next()
@@ -287,11 +289,18 @@ func (c *usersClient) CreateUser(ctx context.Context, req CreateUserPayload) err
 	}
 
 	body := bytes.NewBuffer(b)
-	resp, err := c.h.Post(fmt.Sprintf("%s/users/%s", c.host, req.ID), "application/json", body)
+	endpoint := fmt.Sprintf("%s/users/%s", c.host, req.ID)
+	r, err := http.NewRequest(http.MethodPut, endpoint, body)
 	if err != nil {
-		return nil
+		return err
 	}
 
+	resp, err := c.h.Do(r)
+	if err != nil {
+		return fmt.Errorf("failed to do POST to %s: %s", endpoint, err.Error())
+	}
+
+	log.Printf("status code from calling users: %d", resp.StatusCode)
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
 		responseBody := &bytes.Buffer{}
 		_, err := responseBody.ReadFrom(resp.Body)

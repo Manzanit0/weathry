@@ -25,7 +25,7 @@ func main() {
 	defer func() {
 		err = db.Close()
 		if err != nil {
-			log.Println("error closing db connection: %w", err)
+			log.Printf("error closing db connection: %s\n", err.Error())
 		}
 	}()
 
@@ -40,11 +40,10 @@ func main() {
 	})
 
 	r.PUT("/users/:id", func(c *gin.Context) {
-		log.Println("Received PUT /users/:id")
-
 		u := User{}
 		err := c.BindJSON(&u)
 		if err != nil {
+			log.Printf("unable to bind json: %s\n", err.Error())
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -52,6 +51,7 @@ func main() {
 		id := c.Param("id")
 		_, err = users.Find(c.Request.Context(), fmt.Sprint(id))
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			log.Printf("failed to find user: %s\n", err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -59,13 +59,17 @@ func main() {
 		if errors.Is(err, sql.ErrNoRows) {
 			_, err = users.Create(c.Request.Context(), u)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				log.Printf("failed to create user: %s\n", err.Error())
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
 
+			log.Printf("user %d created\n", u.TelegramChatID)
 			c.JSON(http.StatusCreated, gin.H{"id": id})
+			return
 		}
 
+		log.Printf("user %d found, ignoring request\n", u.TelegramChatID)
 		c.JSON(http.StatusAccepted, gin.H{"id": id})
 	})
 
@@ -79,12 +83,12 @@ func main() {
 
 	srv := &http.Server{Addr: fmt.Sprintf(":%s", port), Handler: r}
 	go func() {
-		log.Printf("serving HTTP on :%s", port)
+		log.Printf("serving HTTP on :%s\n", port)
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("server ended abruptly: %s", err.Error())
+			log.Printf("server ended abruptly: %s\n", err.Error())
 		} else {
-			log.Printf("server ended gracefully")
+			log.Printf("server ended gracefully\n")
 		}
 
 		stop()
@@ -97,8 +101,8 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal("server forced to shutdown: ", err)
+		log.Fatal("server forced to shutdown: %w", err)
 	}
 
-	log.Printf("server exited")
+	log.Printf("server exited\n")
 }
