@@ -9,7 +9,7 @@ import (
 )
 
 type User struct {
-	TelegramChatID int64   `db:"chat_id"`
+	TelegramChatID string  `db:"chat_id"`
 	Username       *string `db:"username"`
 	FirstName      *string `db:"first_name"`
 	LastName       *string `db:"last_name"`

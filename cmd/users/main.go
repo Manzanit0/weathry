@@ -49,6 +49,11 @@ func main() {
 		}
 
 		id := c.Param("id")
+		if id == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
+			return
+		}
+
 		_, err = users.Find(c.Request.Context(), fmt.Sprint(id))
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("failed to find user: %s\n", err.Error())
@@ -57,6 +62,7 @@ func main() {
 		}
 
 		if errors.Is(err, sql.ErrNoRows) {
+			u.TelegramChatID = id
 			_, err = users.Create(c.Request.Context(), u)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				log.Printf("failed to create user: %s\n", err.Error())
@@ -64,12 +70,12 @@ func main() {
 				return
 			}
 
-			log.Printf("user %d created\n", u.TelegramChatID)
+			log.Printf("user %s created\n", u.TelegramChatID)
 			c.JSON(http.StatusCreated, gin.H{"id": id})
 			return
 		}
 
-		log.Printf("user %d found, ignoring request\n", u.TelegramChatID)
+		log.Printf("user %s found, ignoring request\n", u.TelegramChatID)
 		c.JSON(http.StatusAccepted, gin.H{"id": id})
 	})
 
