@@ -55,41 +55,55 @@ func (p *backgroundPinger) MonitorWeather(ctx context.Context) error {
 }
 
 func (p *backgroundPinger) PingRainyForecasts() error {
-	forecast, err := p.FindNextRainyDay()
+	forecasts, err := p.w.GetUpcomingWeather(lat, lon)
 	if err != nil {
-		return fmt.Errorf("error requesting next rainy day: %w", err)
+		return fmt.Errorf("error requesting upcoming weather: %w", err)
 	}
 
-	if forecast == nil {
-		return nil
+	forecast := FindNextRainyDay(forecasts)
+	if forecast != nil {
+		var message string
+		if isToday(forecast.DateTimeTS) {
+			message = "Heads up, it's going to be raining today!"
+		} else {
+			message = fmt.Sprintf("It will be raining next %s.", forecast.FormattedDateTime())
+		}
+
+		chatID, err := getChatIDFromEnv()
+		if err != nil {
+			return fmt.Errorf("unexpected error getting chat_id from environment: %w", err)
+		}
+
+		err = p.t.SendMessage(tgram.SendMessageRequest{Text: message, ChatID: chatID})
+		if err != nil {
+			return fmt.Errorf("failed to send rainy update to telegram: %w", err)
+		}
 	}
 
-	var message string
-	if isToday(forecast.DateTimeTS) {
-		message = "Heads up, it's going to be raining today!"
-	} else {
-		message = fmt.Sprintf("It will be raining next %s.", forecast.FormattedDateTime())
-	}
+	forecast = FindNextHighTemperature(forecasts)
+	if forecast != nil {
+		var message string
+		if isToday(forecast.DateTimeTS) {
+			message = fmt.Sprintf("Heads up, going to be pretty hot with a max of %.2fºC! 🔥", forecast.MaximumTemperature)
+		} else {
+			message = fmt.Sprintf("Next %s temperatures are going to rise all the way to %.2fºC! 🔥", forecast.FormattedDateTime(), forecast.MaximumTemperature)
+		}
 
-	chatID, err := getChatIDFromEnv()
-	if err != nil {
-		return fmt.Errorf("unexpected error getting chat_id from environment: %w", err)
-	}
+		chatID, err := getChatIDFromEnv()
+		if err != nil {
+			return fmt.Errorf("unexpected error getting chat_id from environment: %w", err)
+		}
 
-	err = p.t.SendMessage(tgram.SendMessageRequest{Text: message, ChatID: chatID})
-	if err != nil {
-		return fmt.Errorf("failed to send rainy update to telegram: %w", err)
+		err = p.t.SendMessage(tgram.SendMessageRequest{Text: message, ChatID: chatID})
+		if err != nil {
+			return fmt.Errorf("failed to send rainy update to telegram: %w", err)
+		}
 	}
 
 	return nil
 }
 
-func (p *backgroundPinger) FindNextRainyDay() (*weather.Forecast, error) {
-	forecasts, err := p.w.GetUpcomingWeather(lat, lon)
-	if err != nil {
-		return nil, err
-	}
-
+func FindNextRainyDay(forecasts []*weather.Forecast) *weather.Forecast {
 	for _, f := range forecasts {
 		if f.IsRainy() {
 			// We only want to get today if it's early morning. If we're
@@ -98,11 +112,28 @@ func (p *backgroundPinger) FindNextRainyDay() (*weather.Forecast, error) {
 				continue
 			}
 
-			return f, nil
+			return f
 		}
 	}
 
-	return nil, nil
+	return nil
+}
+
+func FindNextHighTemperature(forecasts []*weather.Forecast) *weather.Forecast {
+	if len(forecasts) == 0 {
+		return nil
+	}
+
+	previousForecast := forecasts[0]
+	for _, f := range forecasts[:len(forecasts)-1] {
+		if f.MaximumTemperature > 32 && f.MaximumTemperature > previousForecast.MaximumTemperature {
+			return f
+		}
+
+		previousForecast = f
+	}
+
+	return nil
 }
 
 func isToday(unix int) bool {
