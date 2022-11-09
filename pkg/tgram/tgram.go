@@ -51,7 +51,7 @@ type client struct {
 	botToken string
 }
 
-func NewClient(h *http.Client, token string) Client {
+func NewClient(h *http.Client, token string) *client {
 	return &client{h: h, botToken: token}
 }
 

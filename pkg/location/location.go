@@ -19,7 +19,7 @@ type Location struct {
 	Country   string
 }
 
-func NewPositionStackClient(h *http.Client, apiKey string) Client {
+func NewPositionStackClient(h *http.Client, apiKey string) *psc {
 	return &psc{h: h, apiKey: apiKey}
 }
 

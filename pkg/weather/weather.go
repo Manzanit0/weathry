@@ -38,7 +38,7 @@ func (f *Forecast) FormattedDateTime() string {
 	return time.Unix(int64(f.DateTimeTS), 0).Format(time.RFC1123)
 }
 
-func NewOpenWeatherMapClient(h *http.Client, apiKey string) Client {
+func NewOpenWeatherMapClient(h *http.Client, apiKey string) *owm {
 	return &owm{h: h, apiKey: apiKey}
 }
 

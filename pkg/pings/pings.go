@@ -23,7 +23,7 @@ type Pinger interface {
 	MonitorWeather(context.Context) error
 }
 
-func NewBackgroundPinger(w weather.Client, l location.Client, t tgram.Client) Pinger {
+func NewBackgroundPinger(w weather.Client, l location.Client, t tgram.Client) *backgroundPinger {
 	return &backgroundPinger{w: w, l: l, t: t}
 }
 
