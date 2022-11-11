@@ -166,6 +166,13 @@ func BuildMessage(f []*weather.Forecast) string {
 		return "hey, not sure why but I couldn't get any forecasts ¯\\_(ツ)_/¯"
 	}
 
+	// TODO: extract from here...
+	// we just want the next 3 forecasts
+	ff := make([]*weather.Forecast, 3)
+	for i := 0; i < 3; i++ {
+		ff[i] = f[i]
+	}
+
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("Weather Report for %s", f[0].Location))
 	for _, v := range f {
@@ -173,18 +180,9 @@ func BuildMessage(f []*weather.Forecast) string {
 		sb.WriteString(fmt.Sprintf(`
 - - - - - - - - - - - - - - - - - - - - - -
 📅 %s
-
-TLDR:
 🏷 %s
-
-Temperature:
-❄️ %0.2f°C
-🔥 %0.2fºC
-
-Wind:
+🌡 %0.2f°C - %0.2f°C
 💨 %0.2f m/s
-
-Humidity:
 💧 %d%%`, ts, v.Description, v.MinimumTemperature, v.MaximumTemperature, v.WindSpeed, v.Humidity))
 	}
 
@@ -198,6 +196,7 @@ func BuildHourlyMessage(f []*weather.Forecast) string {
 		return "hey, not sure why but I couldn't get any forecasts ¯\\_(ツ)_/¯"
 	}
 
+	// TODO: extract from here...
 	// we just want the next 9 forecasts
 	ff := make([]*weather.Forecast, 9)
 	for i := 0; i < 9; i++ {
