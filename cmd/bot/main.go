@@ -216,9 +216,9 @@ func BuildHourlyMessage(f []*weather.Forecast) string {
 - - - - - - - - - - - - - - - - - - - - - -
 📅 %s
 🏷 %s
-🌡 %0.2f°C - %0.2f°C
+🌡 %0.2f°C
 💨 %0.2f m/s
-💧 %d%%`, ts, v.Description, v.MinimumTemperature, v.MaximumTemperature, v.WindSpeed, v.Humidity))
+💧 %d%%`, ts, v.Description, v.MinimumTemperature, v.WindSpeed, v.Humidity))
 	}
 
 	sb.WriteString("\n- - - - - - - - - - - - - - - - - - - - - -")
