@@ -5,5 +5,6 @@ buildCommand = "go build -o bin/users ./cmd/users"
 
 [deploy]
 startCommand = "bin/users"
+healthcheckPath = "/ping"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 10
