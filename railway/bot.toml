@@ -1,0 +1,9 @@
+[build]
+builder = "nixpacks"
+watchPatterns = ["cmd/bot/**", "pkg", "migrations", "railway", "go.mod", "go.sum"]
+buildCommand = "go build -o bin/bot ./cmd/bot"
+
+[deploy]
+startCommand = "bin/bot"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10

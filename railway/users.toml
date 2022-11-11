@@ -1,0 +1,9 @@
+[build]
+builder = "nixpacks"
+watchPatterns = ["cmd/users/**", "pkg", "migrations", "railway", "go.mod", "go.sum"]
+buildCommand = "go build -o bin/users ./cmd/users"
+
+[deploy]
+startCommand = "bin/users"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
