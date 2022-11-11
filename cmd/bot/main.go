@@ -16,9 +16,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/manzanit0/weathry/pkg/location"
+	"github.com/manzanit0/weathry/pkg/middleware"
 	"github.com/manzanit0/weathry/pkg/pings"
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
+	"github.com/manzanit0/weathry/pkg/whttp"
 )
 
 const CtxKeyPayload = "gin.ctx.payload"
@@ -44,7 +46,10 @@ func main() {
 		panic(err)
 	}
 
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(middleware.Logging(log.Default()))
+
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "pong",
@@ -113,7 +118,7 @@ func main() {
 func webhookResponse(p *tgram.WebhookRequest, text string) gin.H {
 	return gin.H{
 		"method":  "sendMessage",
-		"chat_id": p.Message.From.ID,
+		"chat_id": p.GetFromID(),
 		"text":    text,
 	}
 }
@@ -128,25 +133,28 @@ func TelegramAuth(usersClient UsersClient) gin.HandlerFunc {
 			return
 		}
 
-		if !strings.EqualFold(r.Message.Chat.Username, "manzanit0") {
-			log.Printf("unauthorised user: %s", r.Message.Chat.Username)
+		if !strings.EqualFold(r.GetFromUsername(), "manzanit0") {
+			log.Printf("unauthorised user: %s", r.GetFromUsername())
 			c.JSON(http.StatusUnauthorized, gin.H{})
 			return
 		}
 
 		c.Set(CtxKeyPayload, &r)
 
+		username := r.GetFromUsername()
+		firstName := r.GetFromFirstName()
+		lastName := r.GetFromLastName()
 		err := usersClient.CreateUser(c.Request.Context(), CreateUserPayload{
-			ID:           fmt.Sprint(r.Message.From.ID),
-			Username:     &r.Message.From.Username,
-			FirstName:    &r.Message.From.FirstName,
-			LastName:     &r.Message.From.LastName,
-			LanguageCode: r.Message.From.LanguageCode,
+			ID:           fmt.Sprint(r.GetFromID()),
+			Username:     &username,
+			FirstName:    &firstName,
+			LastName:     &lastName,
+			LanguageCode: r.GetFromLanguageCode(),
 		})
 		if err != nil {
 			log.Printf("unable to track user: %s\n", err.Error())
 		} else {
-			log.Printf("user tracked: %s\n", r.Message.Chat.Username)
+			log.Printf("user tracked: %s\n", username)
 		}
 
 		c.Next()
@@ -185,6 +193,39 @@ Humidity:
 	return sb.String()
 }
 
+func BuildHourlyMessage(f []*weather.Forecast) string {
+	if len(f) == 0 {
+		return "hey, not sure why but I couldn't get any forecasts ¯\\_(ツ)_/¯"
+	}
+
+	// we just want the next 9 forecasts
+	ff := make([]*weather.Forecast, 9)
+	for i := 0; i < 9; i++ {
+		ff[i] = f[i]
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Weather Report for %s", f[0].Location))
+	for _, v := range ff {
+		ts, err := v.LocalTime("Europe/Madrid")
+		if err != nil {
+			ts = v.FormattedDateTime()
+		}
+
+		sb.WriteString(fmt.Sprintf(`
+- - - - - - - - - - - - - - - - - - - - - -
+📅 %s
+🏷 %s
+🌡 %0.2f°C - %0.2f°C
+💨 %0.2f m/s
+💧 %d%%`, ts, v.Description, v.MinimumTemperature, v.MaximumTemperature, v.WindSpeed, v.Humidity))
+	}
+
+	sb.WriteString("\n- - - - - - - - - - - - - - - - - - - - - -")
+
+	return sb.String()
+}
+
 func telegramWebhookController(locClient location.Client, weatherClient weather.Client) func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var p *tgram.WebhookRequest
@@ -192,17 +233,22 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 		if i, ok := c.Get(CtxKeyPayload); ok {
 			p = i.(*tgram.WebhookRequest)
 		} else {
-			panic("how did we get here without the payload?")
+			c.JSON(400, gin.H{"error": "bad request"})
+			return
 		}
 
-		if strings.Contains(p.Message.Text, "/today") {
-			strs := strings.Split(p.Message.Text, " ")
-			query := strings.Join(strs[1:], " ")
+		if p.Message == nil {
+			c.JSON(200, webhookResponse(p, "Unsupported type of interaction"))
+			return
+		}
 
+		switch {
+		case strings.HasPrefix(p.Message.Text, "/daily"):
+			query := getQuery(p.Message.Text)
 			log.Printf("fetching location for %s", query)
 			location, err := locClient.FindLocation(query)
 			if err != nil {
-				log.Printf("error: %s", err.Error())
+				log.Printf("error: find location: %s", err.Error())
 				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
 				return
 			}
@@ -210,17 +256,40 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 			log.Printf("fetching weather for %s", location.Name)
 			forecasts, err := weatherClient.GetUpcomingWeather(location.Latitude, location.Longitude)
 			if err != nil {
-				log.Printf("error: %s", err.Error())
+				log.Printf("error: get upcoming weather: %s", err.Error())
 				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
 				return
 			}
 
 			c.JSON(200, webhookResponse(p, BuildMessage(forecasts)))
-			return
-		}
+		case strings.HasPrefix(p.Message.Text, "/hourly"):
+			query := getQuery(p.Message.Text)
+			log.Printf("fetching location for %s", query)
+			location, err := locClient.FindLocation(query)
+			if err != nil {
+				log.Printf("error: find location: %s", err.Error())
+				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
+				return
+			}
 
-		c.JSON(200, webhookResponse(p, fmt.Sprintf("hey %s!", p.Message.Chat.Username)))
+			log.Printf("fetching weather for %s", location.Name)
+			forecasts, err := weatherClient.GetHourlyForecast(location.Latitude, location.Longitude)
+			if err != nil {
+				log.Printf("error: get hourly forecast: %s", err.Error())
+				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
+				return
+			}
+
+			c.JSON(200, webhookResponse(p, BuildHourlyMessage(forecasts)))
+		default:
+			c.JSON(200, webhookResponse(p, fmt.Sprintf("hey %s!", p.Message.Chat.Username)))
+		}
 	}
+}
+
+func getQuery(text string) string {
+	strs := strings.Split(text, " ")
+	return strings.Join(strs[1:], " ")
 }
 
 func newWeatherClient() (weather.Client, error) {
@@ -229,7 +298,8 @@ func newWeatherClient() (weather.Client, error) {
 		return nil, fmt.Errorf("missing OPENWEATHERMAP_API_KEY environment variable. Please check your environment.")
 	}
 
-	return weather.NewOpenWeatherMapClient(&http.Client{Timeout: 5 * time.Second}, openWeatherMapAPIKey), nil
+	httpClient := whttp.NewLoggingClient()
+	return weather.NewOpenWeatherMapClient(httpClient, openWeatherMapAPIKey), nil
 }
 
 func newLocationClient() (location.Client, error) {
@@ -238,7 +308,8 @@ func newLocationClient() (location.Client, error) {
 		return nil, fmt.Errorf("missing POSITIONSTACK_API_KEY environment variable. Please check your environment.")
 	}
 
-	return location.NewPositionStackClient(&http.Client{Timeout: 5 * time.Second}, positionStackAPIKey), nil
+	httpClient := whttp.NewLoggingClient()
+	return location.NewPositionStackClient(httpClient, positionStackAPIKey), nil
 }
 
 func newTelegramClient() (tgram.Client, error) {
@@ -247,7 +318,8 @@ func newTelegramClient() (tgram.Client, error) {
 		return nil, fmt.Errorf("missing TELEGRAM_BOT_TOKEN environment variable. Please check your environment.")
 	}
 
-	return tgram.NewClient(&http.Client{Timeout: 5 * time.Second}, telegramBotToken), nil
+	httpClient := whttp.NewLoggingClient()
+	return tgram.NewClient(httpClient, telegramBotToken), nil
 }
 
 func newUsersClient() (UsersClient, error) {
