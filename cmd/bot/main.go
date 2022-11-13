@@ -21,6 +21,7 @@ import (
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
 	"github.com/manzanit0/weathry/pkg/whttp"
+	"github.com/olekukonko/tablewriter"
 )
 
 const CtxKeyPayload = "gin.ctx.payload"
@@ -117,9 +118,10 @@ func main() {
 
 func webhookResponse(p *tgram.WebhookRequest, text string) gin.H {
 	return gin.H{
-		"method":  "sendMessage",
-		"chat_id": p.GetFromID(),
-		"text":    text,
+		"method":     "sendMessage",
+		"chat_id":    p.GetFromID(),
+		"text":       text,
+		"parse_mode": "MarkdownV2",
 	}
 }
 
@@ -225,6 +227,81 @@ func BuildHourlyMessage(f []*weather.Forecast) string {
 	return sb.String()
 }
 
+type messageOptions struct {
+	withTempDiff bool
+	withTime     bool
+}
+
+type MessageOption func(*messageOptions)
+
+func WithTemperatureDiff() MessageOption {
+	return func(config *messageOptions) {
+		config.withTempDiff = true
+	}
+}
+
+func WithTime() MessageOption {
+	return func(config *messageOptions) {
+		config.withTime = true
+	}
+}
+
+func BuildMessageAsTable(loc *location.Location, f []*weather.Forecast, opts ...MessageOption) string {
+	if len(f) == 0 {
+		return "hey, not sure why but I couldn't get any forecasts ¯\\_(ツ)_/¯"
+	}
+
+	options := messageOptions{withTempDiff: false, withTime: false}
+	for _, f := range opts {
+		f(&options)
+	}
+
+	b := bytes.NewBuffer([]byte{})
+	table := tablewriter.NewWriter(b)
+
+	if options.withTime {
+		table.SetHeader([]string{"Time", "Report"})
+	} else {
+
+		table.SetHeader([]string{"Date", "Report"})
+	}
+
+	for _, v := range f {
+		temp := fmt.Sprintf("%.0fºC", v.MinimumTemperature)
+		if options.withTempDiff {
+			temp = fmt.Sprintf("%.0fºC - %.0fºC", v.MinimumTemperature, v.MaximumTemperature)
+		}
+
+		dt := v.FormattedDate()
+		if options.withTime {
+			dt = v.FormattedTime()
+		}
+
+		table.Append([]string{dt, fmt.Sprintf("%s  \n%s", v.Description, temp)})
+	}
+
+	table.SetRowLine(true)
+	table.SetRowSeparator("-")
+	table.SetAutoFormatHeaders(false)
+
+	table.Render()
+
+	// we're making the assumption here that all forecasts belong to the same day.
+	if options.withTime {
+		return fmt.Sprintf("```%s  \n%s  \n%s```",
+			time.Unix(int64(f[0].DateTimeTS), 0).Format("Mon, 02 Jan 2006"),
+			loc.Name,
+			b.String(),
+		)
+
+	}
+
+	return fmt.Sprintf("```%s  \n%s```",
+		loc.Name,
+		b.String(),
+	)
+}
+
 func telegramWebhookController(locClient location.Client, weatherClient weather.Client) func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var p *tgram.WebhookRequest
@@ -260,7 +337,7 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 				return
 			}
 
-			c.JSON(200, webhookResponse(p, BuildMessage(forecasts)))
+			c.JSON(200, webhookResponse(p, BuildMessageAsTable(location, forecasts, WithTemperatureDiff())))
 		case strings.HasPrefix(p.Message.Text, "/hourly"):
 			query := getQuery(p.Message.Text)
 			log.Printf("fetching location for %s", query)
@@ -279,7 +356,13 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 				return
 			}
 
-			c.JSON(200, webhookResponse(p, BuildHourlyMessage(forecasts)))
+			// Just 9 forecasts for the hourly, to cover 24h.
+			ff := make([]*weather.Forecast, 9)
+			for i := 0; i < 9; i++ {
+				ff[i] = forecasts[i]
+			}
+
+			c.JSON(200, webhookResponse(p, BuildMessageAsTable(location, ff, WithTime())))
 		default:
 			c.JSON(200, webhookResponse(p, fmt.Sprintf("hey %s!", p.Message.Chat.Username)))
 		}

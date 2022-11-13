@@ -40,6 +40,14 @@ func (f *Forecast) FormattedDateTime() string {
 	return time.Unix(int64(f.DateTimeTS), 0).Format(time.RFC1123)
 }
 
+func (f *Forecast) FormattedDate() string {
+	return time.Unix(int64(f.DateTimeTS), 0).Format("Mon 02")
+}
+
+func (f *Forecast) FormattedTime() string {
+	return time.Unix(int64(f.DateTimeTS), 0).Format("15:04h")
+}
+
 func (f *Forecast) LocalTime(timezone string) (string, error) {
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
@@ -69,7 +77,7 @@ func (c *owm) GetCurrentWeather(lat, lon float64) (*Forecast, error) {
 }
 
 func (c *owm) GetUpcomingWeather(lat, lon float64) ([]*Forecast, error) {
-	endpoint := fmt.Sprintf("/data/2.5/forecast/daily/?lat=%f&lon=%f&units=metric&lang=es", lat, lon)
+	endpoint := fmt.Sprintf("/data/2.5/forecast/daily/?lat=%f&lon=%f&units=metric&lang=en", lat, lon)
 	url := fmt.Sprintf("http://api.openweathermap.org%s&appid=%s", endpoint, c.apiKey)
 
 	res, err := c.h.Get(url)
