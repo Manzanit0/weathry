@@ -117,9 +117,18 @@ func NewClient(h *http.Client, token string) *client {
 }
 
 type SendMessageRequest struct {
-	ChatID int64  `json:"chat_id,omitempty"`
-	Text   string `json:"text,omitempty"`
+	ChatID    int64     `json:"chat_id,omitempty"`
+	Text      string    `json:"text,omitempty"`
+	ParseMode ParseMode `json:"parse_mode,omitempty"`
 }
+
+type ParseMode string
+
+const (
+	ParseModeMarkdownV2 ParseMode = "MarkdownV2"
+	ParseModeMarkdownV1 ParseMode = "Markdown"
+	ParseModeHTML       ParseMode = "HTML"
+)
 
 func (c *client) SendMessage(m SendMessageRequest) error {
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", c.botToken)

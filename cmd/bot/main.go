@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -59,13 +60,23 @@ func main() {
 		panic(err)
 	}
 
+	errorTgramClient, err := newErrorTelegramClient()
+	if err != nil {
+		panic(err)
+	}
+
 	usersClient, err := newUsersClient()
 	if err != nil {
 		panic(err)
 	}
 
+	reportToChatID, err := getChatIDFromEnv()
+	if err != nil {
+		panic(err)
+	}
+
 	r := gin.New()
-	r.Use(gin.Recovery())
+	r.Use(middleware.Recovery(errorTgramClient, reportToChatID))
 	r.Use(middleware.Logging(log.Default()))
 
 	r.GET("/ping", func(c *gin.Context) {
@@ -316,16 +327,24 @@ func GetHourlyWeather(locClient location.Client, weatherClient weather.Client, q
 	}
 
 	// Just 9 forecasts for the hourly, to cover 24h.
-	ff := make([]*weather.Forecast, 9)
-	for i := 0; i < 9; i++ {
-		ff[i] = forecasts[i]
+	if len(forecasts) > 9 {
+		filtered := make([]*weather.Forecast, 9)
+		for i := 0; i < 9; i++ {
+			filtered[i] = forecasts[i]
+		}
+
+		return msg.NewForecastTableMessage(location, filtered, msg.WithTime()), nil
 	}
 
-	return msg.NewForecastTableMessage(location, ff, msg.WithTime()), nil
+	return msg.NewForecastTableMessage(location, forecasts, msg.WithTime()), nil
 }
 
 func getQuery(text string) string {
 	strs := strings.Split(text, " ")
+	if len(strs) < 2 {
+		return text
+	}
+
 	return strings.Join(strs[1:], " ")
 }
 
@@ -359,6 +378,16 @@ func newTelegramClient() (tgram.Client, error) {
 	return tgram.NewClient(httpClient, telegramBotToken), nil
 }
 
+func newErrorTelegramClient() (tgram.Client, error) {
+	var telegramBotToken string
+	if telegramBotToken = os.Getenv("ERRORY_BOT_TOKEN"); telegramBotToken == "" {
+		return nil, fmt.Errorf("missing ERRORY_BOT_TOKEN environment variable. Please check your environment.")
+	}
+
+	httpClient := whttp.NewLoggingClient()
+	return tgram.NewClient(httpClient, telegramBotToken), nil
+}
+
 func newUsersClient() (UsersClient, error) {
 	var host string
 	if host = os.Getenv("USER_SERVICE_HOST"); host == "" {
@@ -366,6 +395,20 @@ func newUsersClient() (UsersClient, error) {
 	}
 
 	return NewUsersClient(host), nil
+}
+
+func getChatIDFromEnv() (int64, error) {
+	var chatID string
+	if chatID = os.Getenv("MY_TELEGRAM_CHAT_ID"); chatID == "" {
+		return 0, fmt.Errorf("failed get chat ID from MY_TELEGRAM_CHAT_ID OS enviroment variable")
+	}
+
+	chatIDint, err := strconv.ParseInt(chatID, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse MY_TELEGRAM_CHAT_ID as integer: %s", err.Error())
+	}
+
+	return chatIDint, nil
 }
 
 type UsersClient interface {
