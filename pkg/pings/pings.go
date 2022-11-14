@@ -55,7 +55,7 @@ func (p *backgroundPinger) MonitorWeather(ctx context.Context) error {
 }
 
 func (p *backgroundPinger) PingRainyForecasts() error {
-	forecasts, err := p.w.GetUpcomingWeather(lat, lon)
+	forecasts, err := p.w.GetHourlyForecast(lat, lon)
 	if err != nil {
 		return fmt.Errorf("error requesting upcoming weather: %w", err)
 	}
@@ -66,7 +66,7 @@ func (p *backgroundPinger) PingRainyForecasts() error {
 		if isToday(forecast.DateTimeTS) {
 			message = "Heads up, it's going to be raining today!"
 		} else {
-			message = fmt.Sprintf("It will be raining next %s.", forecast.FormattedDateTime())
+			message = fmt.Sprintf("Hey 👋! It will be raining on %s at around %s.", forecast.FormattedDate(), forecast.FormattedTime())
 		}
 
 		chatID, err := getChatIDFromEnv()
