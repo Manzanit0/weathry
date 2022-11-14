@@ -133,6 +133,7 @@ func main() {
 	log.Printf("pinger exited")
 }
 
+// @see https://core.telegram.org/bots/api#markdownv2-style
 func webhookResponse(p *tgram.WebhookRequest, text string) gin.H {
 	return gin.H{
 		"method":     "sendMessage",
@@ -396,7 +397,7 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				panic(err)
 			} else if errors.Is(err, sql.ErrNoRows) || (convo != nil && convo.Answered) {
-				c.JSON(200, webhookResponse(p, "I'm not sure what you mean with that. Try hitting me up with the `/hourly` or `/daily` commands if you need me to check the weather for you :)"))
+				c.JSON(200, webhookResponse(p, "I\\'m not sure what you mean with that\\. Try hitting me up with the /hourly or /daily commands if you need me to check the weather for you \\:\\)"))
 				return
 			}
 
