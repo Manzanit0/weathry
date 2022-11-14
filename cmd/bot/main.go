@@ -264,7 +264,6 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 
 			c.JSON(200, webhookResponse(p, message))
 		default:
-			log.Println("received non-command query")
 			convo, err := convos.Find(c.Request.Context(), fmt.Sprint(p.GetFromID()))
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				panic(err)
@@ -452,7 +451,6 @@ func (c *usersClient) CreateUser(ctx context.Context, req CreateUserPayload) err
 		return fmt.Errorf("failed to do POST to %s: %s", endpoint, err.Error())
 	}
 
-	log.Printf("status code from calling users: %d", resp.StatusCode)
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
 		responseBody := &bytes.Buffer{}
 		_, err := responseBody.ReadFrom(resp.Body)
