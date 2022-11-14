@@ -57,6 +57,9 @@ func (c *psc) FindLocation(query string) (*Location, error) {
 		return nil, err
 	}
 
+	if len(d.Data) == 0 {
+		return nil, fmt.Errorf("no location data returned by API")
+	}
 	return &Location{
 		Latitude:  d.Data[0].Latitude,
 		Longitude: d.Data[0].Longitude,
