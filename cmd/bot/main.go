@@ -401,8 +401,7 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 				return
 			}
 
-			response := getQuery(p.Message.Text)
-			message, err := forecastFromQuestion(locClient, weatherClient, convo.LastQuestionAsked, response)
+			message, err := forecastFromQuestion(locClient, weatherClient, convo.LastQuestionAsked, p.Message.Text)
 			if err != nil {
 				log.Printf("error: get forecast from question: %s", err.Error())
 				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
