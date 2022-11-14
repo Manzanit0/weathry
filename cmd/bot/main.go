@@ -193,7 +193,7 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 		}
 
 		if p.Message == nil {
-			c.JSON(200, webhookResponse(p, "Unsupported type of interaction"))
+			c.JSON(200, webhookResponse(p, msg.MsgUnsupportedInteraction))
 			return
 		}
 
@@ -206,7 +206,7 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 					panic(err)
 				}
 
-				c.JSON(200, webhookResponse(p, "What location do you want me to check this week's weather for?"))
+				c.JSON(200, webhookResponse(p, msg.MsgLocationQuestionWeek))
 				return
 			}
 
@@ -220,7 +220,7 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 			message, err := GetDailyWeather(locClient, weatherClient, query)
 			if err != nil {
 				log.Printf("error: get upcoming weather: %s", err.Error())
-				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
+				c.JSON(200, webhookResponse(p, msg.MsgUnableToGetReport))
 				return
 			}
 
@@ -233,7 +233,7 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 					panic(err)
 				}
 
-				c.JSON(200, webhookResponse(p, "What location do you want me to check today's weather for?"))
+				c.JSON(200, webhookResponse(p, msg.MsgLocationQuestionDay))
 				return
 			}
 
@@ -247,7 +247,7 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 			message, err := GetHourlyWeather(locClient, weatherClient, query)
 			if err != nil {
 				log.Printf("error: get upcoming weather: %s", err.Error())
-				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
+				c.JSON(200, webhookResponse(p, msg.MsgUnableToGetReport))
 				return
 			}
 
@@ -258,14 +258,14 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				panic(err)
 			} else if errors.Is(err, sql.ErrNoRows) || (convo != nil && convo.Answered) {
-				c.JSON(200, webhookResponse(p, "I\\'m not sure what you mean with that\\. Try hitting me up with the /hourly or /daily commands if you need me to check the weather for you \\:\\)"))
+				c.JSON(200, webhookResponse(p, msg.MsgUnknownText))
 				return
 			}
 
 			message, err := forecastFromQuestion(locClient, weatherClient, convo.LastQuestionAsked, p.Message.Text)
 			if err != nil {
 				log.Printf("error: get forecast from question: %s", err.Error())
-				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
+				c.JSON(200, webhookResponse(p, msg.MsgUnableToGetReport))
 				return
 			}
 

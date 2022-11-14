@@ -11,6 +11,14 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
+const (
+	MsgLocationQuestionWeek   = "What location do you want me to check this week's weather for?"
+	MsgLocationQuestionDay    = "What location do you want me to check today's weather for?"
+	MsgUnknownText            = "I\\'m not sure what you mean with that\\. Try hitting me up with the /hourly or /daily commands if you need me to check the weather for you \\:\\)"
+	MsgUnableToGetReport      = "I'm sorry, the network isn't doing it's best job and I can't get your report just now. Please try again in a bit."
+	MsgUnsupportedInteraction = "Unsupported type of interaction"
+)
+
 func NewEmojifiedDailyMessage(f []*weather.Forecast) string {
 	if len(f) == 0 {
 		return "hey, not sure why but I couldn't get any forecasts ¯\\_(ツ)_/¯"
