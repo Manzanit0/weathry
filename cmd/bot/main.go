@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,11 +23,27 @@ import (
 	"github.com/manzanit0/weathry/pkg/weather"
 	"github.com/manzanit0/weathry/pkg/whttp"
 	"github.com/olekukonko/tablewriter"
+
+	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
 const CtxKeyPayload = "gin.ctx.payload"
 
 func main() {
+	db, err := sql.Open("pgx", fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", os.Getenv("PGUSER"), os.Getenv("PGPASSWORD"), os.Getenv("PGHOST"), os.Getenv("PGPORT"), os.Getenv("PGDATABASE")))
+	if err != nil {
+		panic(fmt.Errorf("unable to open db conn: %w", err))
+	}
+
+	defer func() {
+		err = db.Close()
+		if err != nil {
+			log.Printf("error closing db connection: %s\n", err.Error())
+		}
+	}()
+
+	convos := ConvoRepository{db}
+
 	owmClient, err := newWeatherClient()
 	if err != nil {
 		panic(err)
@@ -58,7 +75,7 @@ func main() {
 	})
 
 	r.Use(TelegramAuth(usersClient))
-	r.POST("/telegram/webhook", telegramWebhookController(psClient, owmClient))
+	r.POST("/telegram/webhook", telegramWebhookController(psClient, owmClient, &convos))
 
 	// background job to ping users on weather changes
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -302,7 +319,7 @@ func BuildMessageAsTable(loc *location.Location, f []*weather.Forecast, opts ...
 	)
 }
 
-func telegramWebhookController(locClient location.Client, weatherClient weather.Client) func(c *gin.Context) {
+func telegramWebhookController(locClient location.Client, weatherClient weather.Client, convos *ConvoRepository) func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var p *tgram.WebhookRequest
 
@@ -321,52 +338,129 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 		switch {
 		case strings.HasPrefix(p.Message.Text, "/daily"):
 			query := getQuery(p.Message.Text)
-			log.Printf("fetching location for %s", query)
-			location, err := locClient.FindLocation(query)
-			if err != nil {
-				log.Printf("error: find location: %s", err.Error())
-				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
+			if len(query) == 0 {
+				_, err := convos.AddQuestion(c.Request.Context(), fmt.Sprint(p.GetFromID()), "AWAITING_DAILY_WEATHER_CITY")
+				if err != nil {
+					panic(err)
+				}
+
+				c.JSON(200, webhookResponse(p, "What location do you want me to check this week's weather for?"))
 				return
 			}
 
-			log.Printf("fetching weather for %s", location.Name)
-			forecasts, err := weatherClient.GetUpcomingWeather(location.Latitude, location.Longitude)
+			if convo, err := convos.Find(c.Request.Context(), fmt.Sprint(p.GetFromID())); err == nil && convo != nil && !convo.Answered {
+				err = convos.MarkQuestionAnswered(c.Request.Context(), fmt.Sprint(p.GetFromID()))
+				if err != nil {
+					log.Printf("error: unable to mark question as answered: %s", err.Error())
+				}
+			}
+
+			message, err := GetDailyWeather(locClient, weatherClient, query)
 			if err != nil {
 				log.Printf("error: get upcoming weather: %s", err.Error())
 				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
 				return
 			}
 
-			c.JSON(200, webhookResponse(p, BuildMessageAsTable(location, forecasts, WithTemperatureDiff())))
+			c.JSON(200, webhookResponse(p, message))
 		case strings.HasPrefix(p.Message.Text, "/hourly"):
 			query := getQuery(p.Message.Text)
-			log.Printf("fetching location for %s", query)
-			location, err := locClient.FindLocation(query)
+			if len(query) == 0 {
+				_, err := convos.AddQuestion(c.Request.Context(), fmt.Sprint(p.GetFromID()), "AWAITING_HOURLY_WEATHER_CITY")
+				if err != nil {
+					panic(err)
+				}
+
+				c.JSON(200, webhookResponse(p, "What location do you want me to check today's weather for?"))
+				return
+			}
+
+			if convo, err := convos.Find(c.Request.Context(), fmt.Sprint(p.GetFromID())); err == nil && convo != nil && !convo.Answered {
+				err = convos.MarkQuestionAnswered(c.Request.Context(), fmt.Sprint(p.GetFromID()))
+				if err != nil {
+					log.Printf("error: unable to mark question as answered: %s", err.Error())
+				}
+			}
+
+			message, err := GetHourlyWeather(locClient, weatherClient, query)
 			if err != nil {
-				log.Printf("error: find location: %s", err.Error())
+				log.Printf("error: get upcoming weather: %s", err.Error())
 				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
 				return
 			}
 
-			log.Printf("fetching weather for %s", location.Name)
-			forecasts, err := weatherClient.GetHourlyForecast(location.Latitude, location.Longitude)
-			if err != nil {
-				log.Printf("error: get hourly forecast: %s", err.Error())
-				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
-				return
-			}
-
-			// Just 9 forecasts for the hourly, to cover 24h.
-			ff := make([]*weather.Forecast, 9)
-			for i := 0; i < 9; i++ {
-				ff[i] = forecasts[i]
-			}
-
-			c.JSON(200, webhookResponse(p, BuildMessageAsTable(location, ff, WithTime())))
+			c.JSON(200, webhookResponse(p, message))
 		default:
-			c.JSON(200, webhookResponse(p, fmt.Sprintf("hey %s!", p.Message.Chat.Username)))
+			log.Println("received non-command query")
+			convo, err := convos.Find(c.Request.Context(), fmt.Sprint(p.GetFromID()))
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				panic(err)
+			} else if errors.Is(err, sql.ErrNoRows) || (convo != nil && convo.Answered) {
+				c.JSON(200, webhookResponse(p, "I'm not sure what you mean with that. Try hitting me up with the `/hourly` or `/daily` commands if you need me to check the weather for you :)"))
+				return
+			}
+
+			response := getQuery(p.Message.Text)
+			message, err := forecastFromQuestion(locClient, weatherClient, convo.LastQuestionAsked, response)
+			if err != nil {
+				log.Printf("error: get forecast from question: %s", err.Error())
+				c.JSON(200, webhookResponse(p, fmt.Sprintf("aww man, couldn't get your weather report: %s!", err.Error())))
+				return
+			}
+
+			err = convos.MarkQuestionAnswered(c.Request.Context(), fmt.Sprint(p.GetFromID()))
+			if err != nil {
+				log.Printf("error: unable to mark question as answered: %s", err.Error())
+			}
+
+			c.JSON(200, webhookResponse(p, message))
 		}
 	}
+}
+
+func forecastFromQuestion(locClient location.Client, weatherClient weather.Client, question, response string) (string, error) {
+	switch question {
+	case "AWAITING_HOURLY_WEATHER_CITY":
+		return GetHourlyWeather(locClient, weatherClient, response)
+	case "AWAITING_DAILY_WEATHER_CITY":
+		return GetDailyWeather(locClient, weatherClient, response)
+	default:
+		return "hey!", nil
+	}
+}
+
+func GetDailyWeather(locClient location.Client, weatherClient weather.Client, query string) (string, error) {
+	location, err := locClient.FindLocation(query)
+	if err != nil {
+		return "", fmt.Errorf("find location: %w", err)
+	}
+
+	forecasts, err := weatherClient.GetUpcomingWeather(location.Latitude, location.Longitude)
+	if err != nil {
+		return "", fmt.Errorf("get weather: %w", err)
+	}
+
+	return BuildMessageAsTable(location, forecasts, WithTemperatureDiff()), nil
+}
+
+func GetHourlyWeather(locClient location.Client, weatherClient weather.Client, query string) (string, error) {
+	location, err := locClient.FindLocation(query)
+	if err != nil {
+		return "", fmt.Errorf("find location: %w", err)
+	}
+
+	forecasts, err := weatherClient.GetHourlyForecast(location.Latitude, location.Longitude)
+	if err != nil {
+		return "", fmt.Errorf("get weather: %w", err)
+	}
+
+	// Just 9 forecasts for the hourly, to cover 24h.
+	ff := make([]*weather.Forecast, 9)
+	for i := 0; i < 9; i++ {
+		ff[i] = forecasts[i]
+	}
+
+	return BuildMessageAsTable(location, ff, WithTime()), nil
 }
 
 func getQuery(text string) string {

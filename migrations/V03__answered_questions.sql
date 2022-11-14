@@ -1,0 +1,2 @@
+ALTER TABLE conversation_states
+ADD COLUMN answered BOOLEAN DEFAULT FALSE NOT NULL;
