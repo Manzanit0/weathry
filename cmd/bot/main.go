@@ -19,7 +19,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/manzanit0/weathry/cmd/bot/msg"
 	"github.com/manzanit0/weathry/pkg/location"
-	"github.com/manzanit0/weathry/pkg/middleware"
 	"github.com/manzanit0/weathry/pkg/pings"
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
@@ -76,8 +75,8 @@ func main() {
 	}
 
 	r := gin.New()
-	r.Use(middleware.Recovery(errorTgramClient, reportToChatID))
-	r.Use(middleware.Logging(log.Default()))
+	r.Use(whttp.Recovery(errorTgramClient, reportToChatID))
+	r.Use(whttp.Logging(log.Default()))
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
