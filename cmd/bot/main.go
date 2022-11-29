@@ -18,6 +18,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/manzanit0/weathry/cmd/bot/msg"
+	"github.com/manzanit0/weathry/pkg/alert"
 	"github.com/manzanit0/weathry/pkg/location"
 	"github.com/manzanit0/weathry/pkg/pings"
 	"github.com/manzanit0/weathry/pkg/tgram"
@@ -74,8 +75,11 @@ func main() {
 		panic(err)
 	}
 
+	notifier := alert.NewTelegramNotifier(errorTgramClient, reportToChatID)
+	defer notifier.Recover(context.TODO())
+
 	r := gin.New()
-	r.Use(whttp.Recovery(errorTgramClient, reportToChatID))
+	r.Use(whttp.Recovery(notifier))
 	r.Use(whttp.Logging(log.Default()))
 
 	r.GET("/ping", func(c *gin.Context) {
@@ -84,7 +88,11 @@ func main() {
 		})
 	})
 
-	r.Use(TelegramAuth(usersClient))
+	r.GET("/panic", func(c *gin.Context) {
+		panic("test panic")
+	})
+
+	r.Use(TelegramAuth(usersClient, notifier))
 	r.POST("/telegram/webhook", telegramWebhookController(psClient, owmClient, &convos))
 
 	// background job to ping users on weather changes
@@ -105,6 +113,7 @@ func main() {
 			}
 
 			log.Printf("pinger ended abruptly: %s", err.Error())
+			notifier.Msg(ctx, "pinger ended abruptly: %s", err.Error())
 			stop()
 		}
 	}()
@@ -119,6 +128,7 @@ func main() {
 		log.Printf("serving HTTP on :%s", port)
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			notifier.Msg(ctx, "server ended abruptly: %s", err.Error())
 			log.Printf("server ended abruptly: %s", err.Error())
 		} else {
 			log.Printf("server ended gracefully")
@@ -153,13 +163,13 @@ func webhookResponse(p *tgram.WebhookRequest, text string) gin.H {
 	}
 }
 
-func TelegramAuth(usersClient UsersClient) gin.HandlerFunc {
+func TelegramAuth(usersClient UsersClient, n alert.Notifier) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var r tgram.WebhookRequest
 		if err := c.ShouldBindJSON(&r); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Errorf("payload does not conform with telegram contract: %w", err).Error(),
-			})
+			msg := fmt.Sprintf("payload does not conform with telegram contract: %s", err.Error())
+			n.Msg(c.Request.Context(), msg)
+			c.JSON(http.StatusBadRequest, gin.H{"error": msg})
 			return
 		}
 
@@ -182,6 +192,7 @@ func TelegramAuth(usersClient UsersClient) gin.HandlerFunc {
 			LanguageCode: r.GetFromLanguageCode(),
 		})
 		if err != nil {
+			n.Msg(c.Request.Context(), "unable to track user: %s", err.Error())
 			log.Printf("unable to track user: %s\n", err.Error())
 		} else {
 			log.Printf("user tracked: %s\n", username)

@@ -1,49 +1,24 @@
 package whttp
 
 import (
-	"fmt"
-	"log"
 	"net/http"
-	"runtime"
-	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/manzanit0/weathry/pkg/tgram"
+	"github.com/manzanit0/weathry/pkg/alert"
 )
 
-func Recovery(t tgram.Client, reportChat int64) gin.HandlerFunc {
+func Recovery(n alert.Notifier) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// This funky mechanic of re-panicking allows leveraging the notifier's
+		// recover while at the same time aborting the request upon panic.
+		defer n.Recover(c.Request.Context())
 		defer func() {
 			if r := recover(); r != nil {
-				callstack := getCallstack()
-				log.Println("recovered from panic", callstack)
-
-				if t != nil {
-					_ = t.SendMessage(tgram.SendMessageRequest{
-						ParseMode: tgram.ParseModeHTML,
-						ChatID:    reportChat,
-						Text: fmt.Sprintf(`<b>Recovered from panic: %v</b>
-<code>%s</code>`, r, callstack),
-					})
-				}
-
 				c.AbortWithStatus(http.StatusInternalServerError)
+				panic(r)
 			}
 		}()
 
 		c.Next()
 	}
-}
-
-func getCallstack() string {
-	pcs := make([]uintptr, 20)
-	depth := runtime.Callers(3, pcs)
-	frames := runtime.CallersFrames(pcs[:depth])
-
-	var sb strings.Builder
-	for f, more := frames.Next(); more; f, more = frames.Next() {
-		sb.WriteString(fmt.Sprintf("%s: %d\n", f.Function, f.Line))
-	}
-
-	return sb.String()
 }
