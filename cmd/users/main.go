@@ -16,6 +16,7 @@ import (
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/manzanit0/weathry/pkg/env"
 	"github.com/manzanit0/weathry/pkg/middleware"
+	"golang.org/x/exp/slog"
 )
 
 func main() {
@@ -27,7 +28,7 @@ func main() {
 	defer func() {
 		err = db.Close()
 		if err != nil {
-			log.Printf("error closing db connection: %s\n", err.Error())
+			slog.Error("error closing db connection", "error", err.Error())
 		}
 	}()
 
@@ -57,7 +58,7 @@ func main() {
 		u := User{}
 		err := c.BindJSON(&u)
 		if err != nil {
-			log.Printf("unable to bind json: %s\n", err.Error())
+			slog.Error("unable to bind json", "error", err.Error())
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -70,7 +71,7 @@ func main() {
 
 		_, err = users.Find(c.Request.Context(), fmt.Sprint(id))
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			log.Printf("failed to find user: %s\n", err.Error())
+			slog.Error("failed to find user", "error", err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -79,17 +80,17 @@ func main() {
 			u.TelegramChatID = id
 			_, err = users.Create(c.Request.Context(), u)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				log.Printf("failed to create user: %s\n", err.Error())
+				slog.Error("failed to create user", "error", err.Error())
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
 
-			log.Printf("user %s created\n", u.TelegramChatID)
+			slog.Info("user created", "telegram.chat_id", u.TelegramChatID)
 			c.JSON(http.StatusCreated, gin.H{"id": id})
 			return
 		}
 
-		log.Printf("user %s found, ignoring request\n", u.TelegramChatID)
+		slog.Info("user found, ignoring request", "telegram.chat_id", u.TelegramChatID)
 		c.JSON(http.StatusAccepted, gin.H{"id": id})
 	})
 
@@ -103,12 +104,12 @@ func main() {
 
 	srv := &http.Server{Addr: fmt.Sprintf(":%s", port), Handler: r}
 	go func() {
-		log.Printf("serving HTTP on :%s\n", port)
+		slog.Info("serving HTTP on :%s", port)
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("server ended abruptly: %s\n", err.Error())
+			slog.Error("server ended abruptly", "error", err.Error())
 		} else {
-			log.Printf("server ended gracefully\n")
+			slog.Info("server ended gracefully")
 		}
 
 		stop()
@@ -124,5 +125,5 @@ func main() {
 		log.Fatal("server forced to shutdown: %w", err)
 	}
 
-	log.Printf("server exited\n")
+	slog.Info("server exited")
 }
