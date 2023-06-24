@@ -1,9 +1,7 @@
 package whttp
 
 import (
-	"bytes"
-	"io"
-	"io/ioutil"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -15,17 +13,7 @@ type LoggingRoundTripper struct {
 }
 
 func (lrt LoggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	q := req.URL.Query()
-	q.Set("access_key", "*****")
-
-	slog.Info("sending request",
-		"http.method", req.Method,
-		"http.url.scheme", req.URL.Scheme,
-		"http.url.host", req.URL.Host,
-		"http.url.path", req.URL.Path,
-		"http.url.query_params", q,
-		"http.content_length", req.ContentLength,
-		"http.headers", req.Header)
+	t0 := time.Now()
 
 	res, err := lrt.Proxied.RoundTrip(req)
 	if err != nil {
@@ -33,17 +21,36 @@ func (lrt LoggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 		return res, err
 	}
 
-	b := bytes.NewBuffer(make([]byte, 0))
-	reader := io.TeeReader(res.Body, b)
+	requestDuration := time.Since(t0).Milliseconds()
 
-	body, _ := ioutil.ReadAll(reader)
+	// Ofuscate access_key if it exists.
+	q := req.URL.Query()
+	if q.Has("access_key") {
+		q.Set("access_key", "*****")
+	}
 
-	// FIXME: the body will be encoded in log output.
-	slog.Info("received response", "http.status_code", res.StatusCode, "http.body", string(body))
+	// Note: this is useful if we want to print the body.
+	// b := bytes.NewBuffer(make([]byte, 0))
+	// reader := io.TeeReader(res.Body, b)
+	// body, _ := ioutil.ReadAll(reader)
+	// defer res.Body.Close()
+	// res.Body = ioutil.NopCloser(b)
 
-	defer res.Body.Close()
-
-	res.Body = ioutil.NopCloser(b)
+	msg := fmt.Sprintf("%s %s://%s%s -> %d (%d ms)", req.Method, req.URL.Scheme, req.URL.Host, req.URL.Path, res.StatusCode, requestDuration)
+	slog.Info(msg,
+		"http.request.duration_ms", requestDuration,
+		"http.request.method", req.Method,
+		"http.request.url.scheme", req.URL.Scheme,
+		"http.request.url.host", req.URL.Host,
+		"http.request.url.path", req.URL.Path,
+		"http.request.url.query_params", q,
+		"http.request.content_length", req.ContentLength,
+		"http.request.headers", req.Header,
+		"http.response.status_code", res.StatusCode,
+		"http.response.headers", res.Header,
+		"http.response.content_length", res.ContentLength,
+		"http.response.uncompressed", res.Uncompressed,
+		"http.response.protocol", res.Proto)
 
 	return res, nil
 }
