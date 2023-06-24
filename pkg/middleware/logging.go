@@ -4,22 +4,14 @@ import (
 	"net/http/httputil"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/exp/slog"
 )
 
-type Logger interface {
-	Println(v ...interface{})
-}
-
-func Logging(l Logger) gin.HandlerFunc {
+func Logging() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if l == nil {
-			c.Next()
-			return
-		}
-
 		reqDump, err := httputil.DumpRequest(c.Request, true)
 		if err == nil {
-			l.Println(string(reqDump))
+			slog.Info(string(reqDump))
 		}
 
 		c.Next()

@@ -2,13 +2,13 @@ package middleware
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"runtime"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/manzanit0/weathry/pkg/tgram"
+	"golang.org/x/exp/slog"
 )
 
 func Recovery(t tgram.Client, reportChat int64) gin.HandlerFunc {
@@ -16,7 +16,7 @@ func Recovery(t tgram.Client, reportChat int64) gin.HandlerFunc {
 		defer func() {
 			if r := recover(); r != nil {
 				callstack := getCallstack()
-				log.Println("recovered from panic", callstack)
+				slog.Error(fmt.Sprint("recovered from panic", callstack))
 
 				if t != nil {
 					_ = t.SendMessage(tgram.SendMessageRequest{
