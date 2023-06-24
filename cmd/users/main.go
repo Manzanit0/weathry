@@ -25,7 +25,7 @@ func init() {
 }
 
 func main() {
-	db, err := sql.Open("pgx", fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", os.Getenv("PGUSER"), os.Getenv("PGPASSWORD"), os.Getenv("PGHOST"), os.Getenv("PGPORT"), os.Getenv("PGDATABASE")))
+	db, err := sql.Open("pgx", os.Getenv("DATABASE_URL"))
 	if err != nil {
 		panic(fmt.Errorf("unable to open db conn: %w", err))
 	}
@@ -36,6 +36,12 @@ func main() {
 			slog.Error("error closing db connection", "error", err.Error())
 		}
 	}()
+
+	if err := db.Ping(); err != nil {
+		panic(fmt.Errorf("unable to ping database: %w", err))
+	} else {
+		slog.Info("connected to the database successfully")
+	}
 
 	myTelegramChatID, err := env.MyTelegramChatID()
 	if err != nil {
