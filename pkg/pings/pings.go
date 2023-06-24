@@ -3,10 +3,9 @@ package pings
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
 	"time"
 
+	"github.com/manzanit0/weathry/pkg/env"
 	"github.com/manzanit0/weathry/pkg/location"
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
@@ -95,12 +94,12 @@ func (p *backgroundPinger) PingRainyForecasts() error {
 	}
 
 	if sendMessage {
-		chatID, err := getChatIDFromEnv()
+		myChatID, err := env.MyTelegramChatID()
 		if err != nil {
 			return fmt.Errorf("unexpected error getting chat_id from environment: %w", err)
 		}
 
-		err = p.t.SendMessage(tgram.SendMessageRequest{Text: message, ChatID: chatID})
+		err = p.t.SendMessage(tgram.SendMessageRequest{Text: message, ChatID: myChatID})
 		if err != nil {
 			return fmt.Errorf("failed to send rainy update to telegram: %w", err)
 		}
@@ -149,18 +148,4 @@ func isToday(unix int) bool {
 
 func isNowPastLunchTime() bool {
 	return time.Now().Hour() > 15
-}
-
-func getChatIDFromEnv() (int64, error) {
-	var chatID string
-	if chatID = os.Getenv("MY_TELEGRAM_CHAT_ID"); chatID == "" {
-		return 0, fmt.Errorf("failed get chat ID from MY_TELEGRAM_CHAT_ID OS enviroment variable")
-	}
-
-	chatIDint, err := strconv.ParseInt(chatID, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse MY_TELEGRAM_CHAT_ID as integer: %s", err.Error())
-	}
-
-	return chatIDint, nil
 }

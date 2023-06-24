@@ -14,6 +14,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v4/stdlib"
+	"github.com/manzanit0/weathry/pkg/env"
+	"github.com/manzanit0/weathry/pkg/middleware"
 )
 
 func main() {
@@ -29,9 +31,21 @@ func main() {
 		}
 	}()
 
+	myTelegramChatID, err := env.MyTelegramChatID()
+	if err != nil {
+		panic(err)
+	}
+
+	errorTgramClient, err := env.NewErroryTgramClient()
+	if err != nil {
+		panic(err)
+	}
+
 	users := UsersRepository{db}
 
-	r := gin.Default()
+	r := gin.New()
+	r.Use(middleware.Recovery(errorTgramClient, myTelegramChatID))
+	r.Use(middleware.Logging())
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
