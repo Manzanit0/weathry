@@ -27,11 +27,6 @@ func Logging() gin.HandlerFunc {
 			"http.request.url.path", c.Request.URL.Path,
 			"http.request.url.query_params", q,
 			"http.request.content_length", c.Request.ContentLength,
-			"http.request.headers", c.Request.Header,
-			"http.response.status_code", c.Request.Response.StatusCode,
-			"http.response.headers", c.Request.Response.Header,
-			"http.response.content_length", c.Request.Response.ContentLength,
-			"http.response.uncompressed", c.Request.Response.Uncompressed,
-			"http.response.protocol", c.Request.Response.Proto)
+			"http.request.headers", c.Request.Header)
 	}
 }
