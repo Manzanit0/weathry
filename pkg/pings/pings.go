@@ -14,7 +14,7 @@ import (
 )
 
 // Madrid
-const lat, lon = 40.2085, -3.713
+const lat, lon = 40.489117, -4.169078
 
 // London
 // const lat2, lon2 = 51.5285582, -0.2416811
@@ -44,7 +44,7 @@ func (p *backgroundPinger) MonitorWeather(ctx context.Context) error {
 			h, m, _ := time.Now().Clock()
 			// FIXME: deploys may fuck up this mechanic: if a deploy happens
 			// exactly at h:00... might miss the message.
-			if m == 0 && (h == 19 || h == 8) {
+			if m == 0 && h == 19 {
 				err := p.PingRainyForecasts()
 				if err != nil {
 					log.Print(err.Error())
@@ -55,40 +55,46 @@ func (p *backgroundPinger) MonitorWeather(ctx context.Context) error {
 }
 
 func (p *backgroundPinger) PingRainyForecasts() error {
+	var message string
+	var sendMessage bool
+
 	forecasts, err := p.w.GetHourlyForecast(lat, lon)
 	if err != nil {
 		return fmt.Errorf("error requesting upcoming weather: %w", err)
 	}
 
-	forecast := FindNextRainyDay(forecasts)
-	if forecast != nil {
-		var message string
-		if isToday(forecast.DateTimeTS) {
+	rainyForecast := FindNextRainyDay(forecasts)
+	if rainyForecast != nil {
+		if isToday(rainyForecast.DateTimeTS) {
 			message = "Heads up, it's going to be raining today!"
 		} else {
-			message = fmt.Sprintf("Hey 👋! It will be raining on %s at around %s.", forecast.FormattedDate(), forecast.FormattedTime())
+			message = fmt.Sprintf("Hey 👋! I'm expecting rain next %s at around %s.",
+				rainyForecast.FormattedDate(),
+				rainyForecast.FormattedTime())
 		}
 
-		chatID, err := getChatIDFromEnv()
-		if err != nil {
-			return fmt.Errorf("unexpected error getting chat_id from environment: %w", err)
+		sendMessage = true
+	}
+
+	highTempForecast := FindNextHighTemperature(forecasts)
+	if highTempForecast != nil {
+		if len(message) > 0 {
+			message += "\n\nAlso, on a separate note, "
+		} else {
+			message = "Hi! Just letting you know that "
 		}
 
-		err = p.t.SendMessage(tgram.SendMessageRequest{Text: message, ChatID: chatID})
-		if err != nil {
-			return fmt.Errorf("failed to send rainy update to telegram: %w", err)
+		if isToday(highTempForecast.DateTimeTS) {
+			message += fmt.Sprintf("it's going to be pretty hot today with a max of %.2fºC! 🔥",
+				highTempForecast.MaximumTemperature)
+		} else {
+			message += fmt.Sprintf("next %s temperatures are going to rise all the way to %.2fºC! 🔥",
+				highTempForecast.FormattedDateTime(),
+				highTempForecast.MaximumTemperature)
 		}
 	}
 
-	forecast = FindNextHighTemperature(forecasts)
-	if forecast != nil {
-		var message string
-		if isToday(forecast.DateTimeTS) {
-			message = fmt.Sprintf("Heads up, going to be pretty hot with a max of %.2fºC! 🔥", forecast.MaximumTemperature)
-		} else {
-			message = fmt.Sprintf("Next %s temperatures are going to rise all the way to %.2fºC! 🔥", forecast.FormattedDateTime(), forecast.MaximumTemperature)
-		}
-
+	if sendMessage {
 		chatID, err := getChatIDFromEnv()
 		if err != nil {
 			return fmt.Errorf("unexpected error getting chat_id from environment: %w", err)
