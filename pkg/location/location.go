@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 )
 
 type Client interface {
@@ -28,8 +29,16 @@ type psc struct {
 	apiKey string
 }
 
+func (c *psc) queryWithDefaults() url.Values {
+	v := url.Values{}
+	v.Set("access_key", c.apiKey)
+	return v
+}
+
 func (c *psc) FindLocation(query string) (*Location, error) {
-	url := fmt.Sprintf("http://api.positionstack.com/v1/forward?access_key=%s&query=%s", c.apiKey, query)
+	q := c.queryWithDefaults()
+	q.Set("query", query)
+	url := fmt.Sprintf("http://api.positionstack.com/v1/forward?%s", q.Encode())
 
 	res, err := c.h.Get(url)
 	if err != nil {
