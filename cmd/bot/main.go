@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -24,9 +23,15 @@ import (
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
 	"github.com/manzanit0/weathry/pkg/whttp"
+	"golang.org/x/exp/slog"
 
 	_ "github.com/jackc/pgx/v4/stdlib"
 )
+
+func init() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+}
 
 const CtxKeyPayload = "gin.ctx.payload"
 
@@ -39,7 +44,7 @@ func main() {
 	defer func() {
 		err = db.Close()
 		if err != nil {
-			log.Printf("error closing db connection: %s\n", err.Error())
+			slog.Error("error closing db connection", "error", err.Error())
 		}
 	}()
 
@@ -77,7 +82,6 @@ func main() {
 
 	r := gin.New()
 	r.Use(middleware.Recovery(errorTgramClient, reportToChatID))
-	r.Use(middleware.Logging(log.Default()))
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -96,16 +100,16 @@ func main() {
 
 	go func() {
 		defer close(pingDone)
-		log.Printf("starting pinger")
+		slog.Info("starting pinger")
 
 		pinger := pings.NewBackgroundPinger(owmClient, psClient, tgramClient)
 		if err := pinger.MonitorWeather(ctx); err != nil {
 			if errors.Is(err, context.Canceled) {
-				log.Printf("pinger ended gracefully")
+				slog.Info("pinger shutdown gracefully")
 				return
 			}
 
-			log.Printf("pinger ended abruptly: %s", err.Error())
+			slog.Error("pinger shutdown abruptly", "error", err.Error())
 			stop()
 		}
 	}()
@@ -117,12 +121,12 @@ func main() {
 
 	srv := &http.Server{Addr: fmt.Sprintf(":%s", port), Handler: r}
 	go func() {
-		log.Printf("serving HTTP on :%s", port)
+		slog.Info(fmt.Sprintf("serving HTTP on :%s", port))
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("server ended abruptly: %s", err.Error())
+			slog.Error("server shutdown abruptly", "error", err.Error())
 		} else {
-			log.Printf("server ended gracefully")
+			slog.Info("server shutdown gracefully")
 		}
 
 		stop()
@@ -135,13 +139,13 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal("server forced to shutdown: ", err)
+		slog.Error("server forced to shutdown", "error", err.Error())
 	}
 
-	log.Printf("server exited")
+	slog.Info("server exited")
 
 	<-pingDone
-	log.Printf("pinger exited")
+	slog.Info("pinger exited")
 }
 
 // @see https://core.telegram.org/bots/api#markdownv2-style
@@ -165,7 +169,7 @@ func TelegramAuth(usersClient UsersClient) gin.HandlerFunc {
 		}
 
 		if !strings.EqualFold(r.GetFromUsername(), "manzanit0") {
-			log.Printf("unauthorised user: %s", r.GetFromUsername())
+			slog.Info("unauthorised user", "username", r.GetFromUsername())
 			c.JSON(http.StatusUnauthorized, gin.H{})
 			return
 		}
@@ -183,9 +187,9 @@ func TelegramAuth(usersClient UsersClient) gin.HandlerFunc {
 			LanguageCode: r.GetFromLanguageCode(),
 		})
 		if err != nil {
-			log.Printf("unable to track user: %s\n", err.Error())
+			slog.Error("unable to track user", "error", err.Error(), "username", username)
 		} else {
-			log.Printf("user tracked: %s\n", username)
+			slog.Info("user tracked", "username", username)
 		}
 
 		c.Next()
@@ -224,13 +228,13 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 			if convo, err := convos.Find(c.Request.Context(), fmt.Sprint(p.GetFromID())); err == nil && convo != nil && !convo.Answered {
 				err = convos.MarkQuestionAnswered(c.Request.Context(), fmt.Sprint(p.GetFromID()))
 				if err != nil {
-					log.Printf("error: unable to mark question as answered: %s", err.Error())
+					slog.Error("unable to mark question as answered", "error", err.Error())
 				}
 			}
 
 			message, err := GetDailyWeather(locClient, weatherClient, query)
 			if err != nil {
-				log.Printf("error: get upcoming weather: %s", err.Error())
+				slog.Error("get upcoming weather", "error", err.Error())
 				c.JSON(200, webhookResponse(p, msg.MsgUnableToGetReport))
 				return
 			}
@@ -251,13 +255,13 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 			if convo, err := convos.Find(c.Request.Context(), fmt.Sprint(p.GetFromID())); err == nil && convo != nil && !convo.Answered {
 				err = convos.MarkQuestionAnswered(c.Request.Context(), fmt.Sprint(p.GetFromID()))
 				if err != nil {
-					log.Printf("error: unable to mark question as answered: %s", err.Error())
+					slog.Error("unable to mark question as answered", "error", err.Error())
 				}
 			}
 
 			message, err := GetHourlyWeather(locClient, weatherClient, query)
 			if err != nil {
-				log.Printf("error: get upcoming weather: %s", err.Error())
+				slog.Error("get upcoming weather", "error", err.Error())
 				c.JSON(200, webhookResponse(p, msg.MsgUnableToGetReport))
 				return
 			}
@@ -274,14 +278,14 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 
 			message, err := forecastFromQuestion(locClient, weatherClient, convo.LastQuestionAsked, p.Message.Text)
 			if err != nil {
-				log.Printf("error: get forecast from question: %s", err.Error())
+				slog.Error("get forecast from question", "error", err.Error())
 				c.JSON(200, webhookResponse(p, msg.MsgUnableToGetReport))
 				return
 			}
 
 			err = convos.MarkQuestionAnswered(c.Request.Context(), fmt.Sprint(p.GetFromID()))
 			if err != nil {
-				log.Printf("error: unable to mark question as answered: %s", err.Error())
+				slog.Error("unable to mark question as answered", "error", err.Error())
 			}
 
 			c.JSON(200, webhookResponse(p, message))

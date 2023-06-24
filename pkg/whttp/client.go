@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"time"
+
+	"golang.org/x/exp/slog"
 )
 
 type LoggingRoundTripper struct {
@@ -14,12 +15,21 @@ type LoggingRoundTripper struct {
 }
 
 func (lrt LoggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	// TODO: remove api keys from query params
-	log.Printf("%s %v\n", req.Method, req.URL)
+	q := req.URL.Query()
+	q.Set("access_key", "*****")
+
+	slog.Info("sending request",
+		"http.method", req.Method,
+		"http.url.scheme", req.URL.Scheme,
+		"http.url.host", req.URL.Host,
+		"http.url.path", req.URL.Path,
+		"http.url.query_params", q,
+		"http.content_length", req.ContentLength,
+		"http.headers", req.Header)
 
 	res, err := lrt.Proxied.RoundTrip(req)
 	if err != nil {
-		log.Printf("Error: %v", err)
+		slog.Error(err.Error())
 		return res, err
 	}
 
@@ -27,7 +37,9 @@ func (lrt LoggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	reader := io.TeeReader(res.Body, b)
 
 	body, _ := ioutil.ReadAll(reader)
-	log.Printf("Received %s response\n%s\n", res.Status, string(body))
+
+	// FIXME: the body will be encoded in log output.
+	slog.Info("received response", "http.status_code", res.StatusCode, "http.body", string(body))
 
 	defer res.Body.Close()
 
