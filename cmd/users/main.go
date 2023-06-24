@@ -109,7 +109,7 @@ func main() {
 
 	srv := &http.Server{Addr: fmt.Sprintf(":%s", port), Handler: r}
 	go func() {
-		slog.Info("serving HTTP on :%s", port)
+		slog.Info(fmt.Sprintf("serving HTTP on :%s", port))
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("server ended abruptly", "error", err.Error())
