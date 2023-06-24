@@ -3,7 +3,6 @@ package pings
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"github.com/manzanit0/weathry/pkg/location"
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
+	"golang.org/x/exp/slog"
 )
 
 // Madrid
@@ -47,7 +47,7 @@ func (p *backgroundPinger) MonitorWeather(ctx context.Context) error {
 			if m == 0 && h == 19 {
 				err := p.PingRainyForecasts()
 				if err != nil {
-					log.Print(err.Error())
+					slog.Error("ping rainy forcasts", "error", err.Error())
 				}
 			}
 		}
