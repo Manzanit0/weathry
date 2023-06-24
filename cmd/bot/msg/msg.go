@@ -144,7 +144,7 @@ func NewForecastTableMessage(loc *location.Location, f []*weather.Forecast, opts
 
 	// we're making the assumption here that all forecasts belong to the same day.
 	if options.withTime {
-		return fmt.Sprintf("```%s  \n%s  \n%s```",
+		return fmt.Sprintf("```\n%s  \n%s  \n%s```",
 			time.Unix(int64(f[0].DateTimeTS), 0).Format("Mon, 02 Jan 2006"),
 			loc.Name,
 			b.String(),
@@ -152,7 +152,7 @@ func NewForecastTableMessage(loc *location.Location, f []*weather.Forecast, opts
 
 	}
 
-	return fmt.Sprintf("```%s  \n%s```",
+	return fmt.Sprintf("```\n%s  \n%s```",
 		loc.Name,
 		b.String(),
 	)
