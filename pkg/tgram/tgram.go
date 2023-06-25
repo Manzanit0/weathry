@@ -9,9 +9,23 @@ import (
 )
 
 type WebhookRequest struct {
-	UpdateID      int      `json:"update_id"`
-	Message       *Message `json:"message"`
-	EditedMessage *Message `json:"edited_message"`
+	UpdateID      int            `json:"update_id"`
+	Message       *Message       `json:"message"`
+	EditedMessage *Message       `json:"edited_message"`
+	CallbackQuery *CallbackQuery `json:"callback_query"`
+}
+
+type CallbackQuery struct {
+	ID              string  `json:"id"`
+	ChatInstance    string  `json:"chat_instance"`
+	From            From    `json:"from"`
+	Message         Message `json:"message"`
+	Data            string  `json:"data"`
+	InlineMessageID string  `json:"inline_message_id"`
+}
+
+func (w WebhookRequest) IsCallbackQuery() bool {
+	return w.CallbackQuery != nil
 }
 
 func (w WebhookRequest) GetFromUsername() string {
@@ -21,6 +35,10 @@ func (w WebhookRequest) GetFromUsername() string {
 
 	if w.EditedMessage != nil {
 		return w.EditedMessage.From.Username
+	}
+
+	if w.CallbackQuery != nil {
+		return w.CallbackQuery.From.Username
 	}
 
 	return ""
@@ -35,6 +53,10 @@ func (w WebhookRequest) GetFromID() int {
 		return w.EditedMessage.From.ID
 	}
 
+	if w.CallbackQuery != nil {
+		return w.CallbackQuery.From.ID
+	}
+
 	return 0
 }
 
@@ -45,6 +67,10 @@ func (w WebhookRequest) GetFromFirstName() string {
 
 	if w.EditedMessage != nil {
 		return w.EditedMessage.From.FirstName
+	}
+
+	if w.CallbackQuery != nil {
+		return w.CallbackQuery.From.FirstName
 	}
 
 	return ""
@@ -59,6 +85,10 @@ func (w WebhookRequest) GetFromLastName() string {
 		return w.EditedMessage.From.LastName
 	}
 
+	if w.CallbackQuery != nil {
+		return w.CallbackQuery.From.LastName
+	}
+
 	return ""
 }
 
@@ -69,6 +99,10 @@ func (w WebhookRequest) GetFromLanguageCode() string {
 
 	if w.EditedMessage != nil {
 		return w.EditedMessage.From.LanguageCode
+	}
+
+	if w.CallbackQuery != nil {
+		return w.CallbackQuery.From.LanguageCode
 	}
 
 	return ""
@@ -117,9 +151,25 @@ func NewClient(h *http.Client, token string) *client {
 }
 
 type SendMessageRequest struct {
-	ChatID    int64     `json:"chat_id,omitempty"`
-	Text      string    `json:"text,omitempty"`
-	ParseMode ParseMode `json:"parse_mode,omitempty"`
+	ChatID      int64        `json:"chat_id,omitempty"`
+	Text        string       `json:"text,omitempty"`
+	ParseMode   ParseMode    `json:"parse_mode,omitempty"`
+	ReplyMarkup *ReplyMarkup `json:"reply_markup,omitempty"`
+}
+
+type ReplyMarkup struct {
+	InlineKeyboard [][]InlineKeyboardElement `json:"inline_keyboard"`
+}
+
+type InlineKeyboardElement struct {
+	Text         string `json:"text"`
+	CallbackData string `json:"callback_data"`
+}
+
+func (m *SendMessageRequest) AddKeyboardElementRow(e []InlineKeyboardElement) {
+	m.ReplyMarkup = &ReplyMarkup{
+		InlineKeyboard: [][]InlineKeyboardElement{e},
+	}
 }
 
 type ParseMode string

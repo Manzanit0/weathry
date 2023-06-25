@@ -12,7 +12,7 @@ import (
 	"golang.org/x/exp/slog"
 )
 
-// Madrid
+const name = "Fresnedillas de la Oliva, ES"
 const lat, lon = 40.489117, -4.169078
 
 // London
@@ -78,7 +78,7 @@ func (p *backgroundPinger) PingRainyForecasts() error {
 	highTempForecast := FindNextHighTemperature(forecasts)
 	if highTempForecast != nil {
 		if len(message) > 0 {
-			message += "\n\nAlso, on a separate note, "
+			message += "\nAlso, on a separate note, "
 		} else {
 			message = "Hi! Just letting you know that "
 		}
@@ -99,7 +99,13 @@ func (p *backgroundPinger) PingRainyForecasts() error {
 			return fmt.Errorf("unexpected error getting chat_id from environment: %w", err)
 		}
 
-		err = p.t.SendMessage(tgram.SendMessageRequest{Text: message, ChatID: myChatID})
+		res := tgram.SendMessageRequest{Text: message, ChatID: myChatID}
+		res.AddKeyboardElementRow([]tgram.InlineKeyboardElement{
+			{Text: "⏰ Check hourly forecast", CallbackData: fmt.Sprintf("hourly:%f,%f", lat, lon)},
+			{Text: "📆 Check daily forecast", CallbackData: fmt.Sprintf("daily:%f,%f", lat, lon)},
+		})
+
+		err = p.t.SendMessage(res)
 		if err != nil {
 			return fmt.Errorf("failed to send rainy update to telegram: %w", err)
 		}

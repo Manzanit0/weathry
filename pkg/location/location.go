@@ -10,6 +10,7 @@ import (
 
 type Client interface {
 	FindLocation(query string) (*Location, error)
+	ReverseFindLocation(lat, long float64) (*Location, error)
 }
 
 type Location struct {
@@ -78,6 +79,49 @@ func (c *psc) FindLocation(query string) (*Location, error) {
 	}, nil
 }
 
+func (c *psc) ReverseFindLocation(lat, lon float64) (*Location, error) {
+	q := c.queryWithDefaults()
+	q.Set("query", fmt.Sprintf("%f,%f", lat, lon))
+	url := fmt.Sprintf("http://api.positionstack.com/v1/reverse?%s", q.Encode())
+
+	res, err := c.h.Get(url)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if res.StatusCode > 299 {
+		var d ErrorResponse
+		err = json.Unmarshal(data, &d)
+		if err != nil {
+			return nil, err
+		}
+
+		return nil, fmt.Errorf(d.Error.Message)
+	}
+
+	var d LocationRequestResponse
+	err = json.Unmarshal(data, &d)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(d.Data) == 0 {
+		return nil, fmt.Errorf("no location data returned by API")
+	}
+	return &Location{
+		Latitude:  d.Data[0].Latitude,
+		Longitude: d.Data[0].Longitude,
+		Name:      d.Data[0].Name,
+		Region:    "N/A",
+		Country:   d.Data[0].Country,
+	}, nil
+}
+
 type LocationRequestResponse struct {
 	Data []LocationData `json:"data"`
 }
@@ -90,7 +134,7 @@ type LocationData struct {
 	Label     string  `json:"label,omitempty"`
 	Name      string  `json:"name,omitempty"`
 	Type      string  `json:"type,omitempty"`
-	Distance  int     `json:"distance,omitempty"`
+	Distance  float64 `json:"distance,omitempty"`
 	// Number        string  `json:"number,omitempty"`
 	// Street        string  `json:"street,omitempty"`
 	// PostalCode    string  `json:"postal_code,omitempty"`

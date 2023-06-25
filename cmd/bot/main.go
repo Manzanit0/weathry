@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -214,6 +215,59 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 			return
 		}
 
+		if p.IsCallbackQuery() {
+			s := strings.Split(p.CallbackQuery.Data, ":")
+			if len(s) != 2 {
+				slog.Error("callback data is wrong", "callback_data", p.CallbackQuery.Data, "error", "expedted format: hourly:lat,lon")
+				c.JSON(500, gin.H{"error": "callback data is wrong"})
+				return
+			}
+
+			ss := strings.Split(s[1], ",")
+			if len(s) != 2 {
+				slog.Error("callback data is wrong", "callback_data", p.CallbackQuery.Data, "error", "expedted format: hourly:lat,lon")
+				c.JSON(500, gin.H{"error": "callback data is wrong"})
+				return
+			}
+
+			lat, err := strconv.ParseFloat(ss[0], 64)
+			if err != nil {
+				slog.Error("invalid lat", "error", err.Error(), "callback_data", p.CallbackQuery.Data)
+				c.JSON(500, gin.H{"error": "callback data is wrong"})
+				return
+			}
+
+			lon, err := strconv.ParseFloat(ss[1], 64)
+			if err != nil {
+				slog.Error("invalid lat", "error", err.Error(), "callback_data", p.CallbackQuery.Data)
+				c.JSON(500, gin.H{"error": "callback data is wrong"})
+				return
+			}
+
+			switch s[0] {
+			case "hourly":
+				message, err := GetHourlyWeatherByCoordinates(locClient, weatherClient, lat, lon)
+				if err != nil {
+					slog.Error("get upcoming weather", "error", err.Error())
+					c.JSON(200, webhookResponse(p, msg.MsgUnableToGetReport))
+					return
+				}
+
+				c.JSON(200, webhookResponse(p, message))
+				return
+			case "daily":
+				message, err := GetDailyWeatherByCoordinates(locClient, weatherClient, lat, lon)
+				if err != nil {
+					slog.Error("get upcoming weather", "error", err.Error())
+					c.JSON(200, webhookResponse(p, msg.MsgUnableToGetReport))
+					return
+				}
+
+				c.JSON(200, webhookResponse(p, message))
+				return
+			}
+		}
+
 		if p.Message == nil {
 			c.JSON(200, webhookResponse(p, msg.MsgUnsupportedInteraction))
 			return
@@ -266,7 +320,7 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 				}
 			}
 
-			message, err := GetHourlyWeather(locClient, weatherClient, query)
+			message, err := GetHourlyWeatherByLocationName(locClient, weatherClient, query)
 			if err != nil {
 				slog.Error("get upcoming weather", "error", err.Error())
 				c.JSON(200, webhookResponse(p, msg.MsgUnableToGetReport))
@@ -303,7 +357,7 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 func forecastFromQuestion(locClient location.Client, weatherClient weather.Client, question, response string) (string, error) {
 	switch question {
 	case "AWAITING_HOURLY_WEATHER_CITY":
-		return GetHourlyWeather(locClient, weatherClient, response)
+		return GetHourlyWeatherByLocationName(locClient, weatherClient, response)
 	case "AWAITING_DAILY_WEATHER_CITY":
 		return GetDailyWeather(locClient, weatherClient, response)
 	default:
@@ -325,12 +379,39 @@ func GetDailyWeather(locClient location.Client, weatherClient weather.Client, qu
 	return msg.NewForecastTableMessage(location, forecasts, msg.WithTemperatureDiff()), nil
 }
 
-func GetHourlyWeather(locClient location.Client, weatherClient weather.Client, query string) (string, error) {
-	location, err := locClient.FindLocation(query)
+func GetDailyWeatherByCoordinates(locClient location.Client, weatherClient weather.Client, latitude, longitude float64) (string, error) {
+	location, err := locClient.ReverseFindLocation(latitude, longitude)
 	if err != nil {
 		return "", fmt.Errorf("find location: %w", err)
 	}
 
+	forecasts, err := weatherClient.GetUpcomingWeather(location.Latitude, location.Longitude)
+	if err != nil {
+		return "", fmt.Errorf("get weather: %w", err)
+	}
+
+	return msg.NewForecastTableMessage(location, forecasts, msg.WithTemperatureDiff()), nil
+}
+
+func GetHourlyWeatherByLocationName(locClient location.Client, weatherClient weather.Client, locationName string) (string, error) {
+	location, err := locClient.FindLocation(locationName)
+	if err != nil {
+		return "", fmt.Errorf("find location: %w", err)
+	}
+
+	return getHourlyWeather(weatherClient, location)
+}
+
+func GetHourlyWeatherByCoordinates(locClient location.Client, weatherClient weather.Client, latitude, longitude float64) (string, error) {
+	location, err := locClient.ReverseFindLocation(latitude, longitude)
+	if err != nil {
+		return "", fmt.Errorf("find location: %w", err)
+	}
+
+	return getHourlyWeather(weatherClient, location)
+}
+
+func getHourlyWeather(weatherClient weather.Client, location *location.Location) (string, error) {
 	forecasts, err := weatherClient.GetHourlyForecast(location.Latitude, location.Longitude)
 	if err != nil {
 		return "", fmt.Errorf("get weather: %w", err)
@@ -346,6 +427,7 @@ func GetHourlyWeather(locClient location.Client, weatherClient weather.Client, q
 		return msg.NewForecastTableMessage(location, filtered, msg.WithTime()), nil
 	}
 
+	// We don't need the temperature diff because within the hour there's not much difference.
 	return msg.NewForecastTableMessage(location, forecasts, msg.WithTime()), nil
 }
 
