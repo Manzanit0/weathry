@@ -10,12 +10,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/manzanit0/weathry/cmd/bot/api"
+	"github.com/manzanit0/weathry/cmd/bot/conversation"
 	"github.com/manzanit0/weathry/cmd/bot/msg"
 	"github.com/manzanit0/weathry/pkg/env"
 	"github.com/manzanit0/weathry/pkg/location"
@@ -55,7 +56,7 @@ func main() {
 		slog.Info("connected to the database successfully")
 	}
 
-	convos := ConvoRepository{db}
+	convos := conversation.ConvoRepository{DB: db}
 
 	owmClient, err := newWeatherClient()
 	if err != nil {
@@ -204,7 +205,9 @@ func TelegramAuth(usersClient UsersClient) gin.HandlerFunc {
 	}
 }
 
-func telegramWebhookController(locClient location.Client, weatherClient weather.Client, convos *ConvoRepository) func(c *gin.Context) {
+func telegramWebhookController(locClient location.Client, weatherClient weather.Client, convos *conversation.ConvoRepository) func(c *gin.Context) {
+	callbackCtrl := api.NewCallbackController(locClient, weatherClient)
+	messageCtrl := api.NewMessageController(locClient, weatherClient, convos)
 	return func(c *gin.Context) {
 		var p *tgram.WebhookRequest
 
@@ -216,56 +219,9 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 		}
 
 		if p.IsCallbackQuery() {
-			s := strings.Split(p.CallbackQuery.Data, ":")
-			if len(s) != 2 {
-				slog.Error("callback data is wrong", "callback_data", p.CallbackQuery.Data, "error", "expedted format: hourly:lat,lon")
-				c.JSON(500, gin.H{"error": "callback data is wrong"})
-				return
-			}
-
-			ss := strings.Split(s[1], ",")
-			if len(s) != 2 {
-				slog.Error("callback data is wrong", "callback_data", p.CallbackQuery.Data, "error", "expedted format: hourly:lat,lon")
-				c.JSON(500, gin.H{"error": "callback data is wrong"})
-				return
-			}
-
-			lat, err := strconv.ParseFloat(ss[0], 64)
-			if err != nil {
-				slog.Error("invalid lat", "error", err.Error(), "callback_data", p.CallbackQuery.Data)
-				c.JSON(500, gin.H{"error": "callback data is wrong"})
-				return
-			}
-
-			lon, err := strconv.ParseFloat(ss[1], 64)
-			if err != nil {
-				slog.Error("invalid lat", "error", err.Error(), "callback_data", p.CallbackQuery.Data)
-				c.JSON(500, gin.H{"error": "callback data is wrong"})
-				return
-			}
-
-			switch s[0] {
-			case "hourly":
-				message, err := GetHourlyWeatherByCoordinates(locClient, weatherClient, lat, lon)
-				if err != nil {
-					slog.Error("get upcoming weather", "error", err.Error())
-					c.JSON(200, webhookResponse(p, msg.MsgUnableToGetReport))
-					return
-				}
-
-				c.JSON(200, webhookResponse(p, message))
-				return
-			case "daily":
-				message, err := GetDailyWeatherByCoordinates(locClient, weatherClient, lat, lon)
-				if err != nil {
-					slog.Error("get upcoming weather", "error", err.Error())
-					c.JSON(200, webhookResponse(p, msg.MsgUnableToGetReport))
-					return
-				}
-
-				c.JSON(200, webhookResponse(p, message))
-				return
-			}
+			message := callbackCtrl.ProcessCallbackQuery(p)
+			c.JSON(200, webhookResponse(p, message))
+			return
 		}
 
 		if p.Message == nil {
@@ -275,169 +231,21 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 
 		switch {
 		case strings.HasPrefix(p.Message.Text, "/daily"):
-			query := getQuery(p.Message.Text)
-			if len(query) == 0 {
-				_, err := convos.AddQuestion(c.Request.Context(), fmt.Sprint(p.GetFromID()), "AWAITING_DAILY_WEATHER_CITY")
-				if err != nil {
-					panic(err)
-				}
-
-				c.JSON(200, webhookResponse(p, msg.MsgLocationQuestionWeek))
-				return
-			}
-
-			if convo, err := convos.Find(c.Request.Context(), fmt.Sprint(p.GetFromID())); err == nil && convo != nil && !convo.Answered {
-				err = convos.MarkQuestionAnswered(c.Request.Context(), fmt.Sprint(p.GetFromID()))
-				if err != nil {
-					slog.Error("unable to mark question as answered", "error", err.Error())
-				}
-			}
-
-			message, err := GetDailyWeather(locClient, weatherClient, query)
-			if err != nil {
-				slog.Error("get upcoming weather", "error", err.Error())
-				c.JSON(200, webhookResponse(p, msg.MsgUnableToGetReport))
-				return
-			}
-
+			message := messageCtrl.ProcessDailyCommand(c.Request.Context(), p)
 			c.JSON(200, webhookResponse(p, message))
+			return
+
 		case strings.HasPrefix(p.Message.Text, "/hourly"):
-			query := getQuery(p.Message.Text)
-			if len(query) == 0 {
-				_, err := convos.AddQuestion(c.Request.Context(), fmt.Sprint(p.GetFromID()), "AWAITING_HOURLY_WEATHER_CITY")
-				if err != nil {
-					panic(err)
-				}
-
-				c.JSON(200, webhookResponse(p, msg.MsgLocationQuestionDay))
-				return
-			}
-
-			if convo, err := convos.Find(c.Request.Context(), fmt.Sprint(p.GetFromID())); err == nil && convo != nil && !convo.Answered {
-				err = convos.MarkQuestionAnswered(c.Request.Context(), fmt.Sprint(p.GetFromID()))
-				if err != nil {
-					slog.Error("unable to mark question as answered", "error", err.Error())
-				}
-			}
-
-			message, err := GetHourlyWeatherByLocationName(locClient, weatherClient, query)
-			if err != nil {
-				slog.Error("get upcoming weather", "error", err.Error())
-				c.JSON(200, webhookResponse(p, msg.MsgUnableToGetReport))
-				return
-			}
-
+			message := messageCtrl.ProcessHourlyCommand(c.Request.Context(), p)
 			c.JSON(200, webhookResponse(p, message))
+			return
+
 		default:
-			convo, err := convos.Find(c.Request.Context(), fmt.Sprint(p.GetFromID()))
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				panic(err)
-			} else if errors.Is(err, sql.ErrNoRows) || (convo != nil && convo.Answered) {
-				c.JSON(200, webhookResponse(p, msg.MsgUnknownText))
-				return
-			}
-
-			message, err := forecastFromQuestion(locClient, weatherClient, convo.LastQuestionAsked, p.Message.Text)
-			if err != nil {
-				slog.Error("get forecast from question", "error", err.Error())
-				c.JSON(200, webhookResponse(p, msg.MsgUnableToGetReport))
-				return
-			}
-
-			err = convos.MarkQuestionAnswered(c.Request.Context(), fmt.Sprint(p.GetFromID()))
-			if err != nil {
-				slog.Error("unable to mark question as answered", "error", err.Error())
-			}
-
+			message := messageCtrl.ProcessNonCommand(c.Request.Context(), p)
 			c.JSON(200, webhookResponse(p, message))
+			return
 		}
 	}
-}
-
-func forecastFromQuestion(locClient location.Client, weatherClient weather.Client, question, response string) (string, error) {
-	switch question {
-	case "AWAITING_HOURLY_WEATHER_CITY":
-		return GetHourlyWeatherByLocationName(locClient, weatherClient, response)
-	case "AWAITING_DAILY_WEATHER_CITY":
-		return GetDailyWeather(locClient, weatherClient, response)
-	default:
-		return "hey!", nil
-	}
-}
-
-func GetDailyWeather(locClient location.Client, weatherClient weather.Client, query string) (string, error) {
-	location, err := locClient.FindLocation(query)
-	if err != nil {
-		return "", fmt.Errorf("find location: %w", err)
-	}
-
-	forecasts, err := weatherClient.GetUpcomingWeather(location.Latitude, location.Longitude)
-	if err != nil {
-		return "", fmt.Errorf("get weather: %w", err)
-	}
-
-	return msg.NewForecastTableMessage(location, forecasts, msg.WithTemperatureDiff()), nil
-}
-
-func GetDailyWeatherByCoordinates(locClient location.Client, weatherClient weather.Client, latitude, longitude float64) (string, error) {
-	location, err := locClient.ReverseFindLocation(latitude, longitude)
-	if err != nil {
-		return "", fmt.Errorf("find location: %w", err)
-	}
-
-	forecasts, err := weatherClient.GetUpcomingWeather(location.Latitude, location.Longitude)
-	if err != nil {
-		return "", fmt.Errorf("get weather: %w", err)
-	}
-
-	return msg.NewForecastTableMessage(location, forecasts, msg.WithTemperatureDiff()), nil
-}
-
-func GetHourlyWeatherByLocationName(locClient location.Client, weatherClient weather.Client, locationName string) (string, error) {
-	location, err := locClient.FindLocation(locationName)
-	if err != nil {
-		return "", fmt.Errorf("find location: %w", err)
-	}
-
-	return getHourlyWeather(weatherClient, location)
-}
-
-func GetHourlyWeatherByCoordinates(locClient location.Client, weatherClient weather.Client, latitude, longitude float64) (string, error) {
-	location, err := locClient.ReverseFindLocation(latitude, longitude)
-	if err != nil {
-		return "", fmt.Errorf("find location: %w", err)
-	}
-
-	return getHourlyWeather(weatherClient, location)
-}
-
-func getHourlyWeather(weatherClient weather.Client, location *location.Location) (string, error) {
-	forecasts, err := weatherClient.GetHourlyForecast(location.Latitude, location.Longitude)
-	if err != nil {
-		return "", fmt.Errorf("get weather: %w", err)
-	}
-
-	// Just 9 forecasts for the hourly, to cover 24h.
-	if len(forecasts) > 9 {
-		filtered := make([]*weather.Forecast, 9)
-		for i := 0; i < 9; i++ {
-			filtered[i] = forecasts[i]
-		}
-
-		return msg.NewForecastTableMessage(location, filtered, msg.WithTime()), nil
-	}
-
-	// We don't need the temperature diff because within the hour there's not much difference.
-	return msg.NewForecastTableMessage(location, forecasts, msg.WithTime()), nil
-}
-
-func getQuery(text string) string {
-	strs := strings.Split(text, " ")
-	if len(strs) < 2 {
-		return text
-	}
-
-	return strings.Join(strs[1:], " ")
 }
 
 func newWeatherClient() (weather.Client, error) {
