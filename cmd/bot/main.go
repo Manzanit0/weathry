@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -34,8 +32,6 @@ func init() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 }
-
-const CtxKeyPayload = "gin.ctx.payload"
 
 func main() {
 	db, err := sql.Open("pgx", os.Getenv("DATABASE_URL"))
@@ -98,7 +94,10 @@ func main() {
 		})
 	})
 
-	r.Use(TelegramAuth(usersClient))
+	// To avoid other bots, or even actual humans, using my API quotas, just
+	// authorised the users you want to use the BOT.
+	authorisedUsers := strings.Split(os.Getenv("TELEGRAM_AUTHORISED_USERS"), ",")
+	r.Use(middleware.TelegramAuth(usersClient, authorisedUsers...))
 	r.POST("/telegram/webhook", telegramWebhookController(psClient, owmClient, &convos))
 
 	// background job to ping users on weather changes
@@ -167,51 +166,13 @@ func webhookResponse(p *tgram.WebhookRequest, text string) gin.H {
 	}
 }
 
-func TelegramAuth(usersClient UsersClient) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var r tgram.WebhookRequest
-		if err := c.ShouldBindJSON(&r); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Errorf("payload does not conform with telegram contract: %w", err).Error(),
-			})
-			return
-		}
-
-		if !strings.EqualFold(r.GetFromUsername(), "manzanit0") {
-			slog.Info("unauthorised user", "username", r.GetFromUsername())
-			c.JSON(http.StatusUnauthorized, gin.H{})
-			return
-		}
-
-		c.Set(CtxKeyPayload, &r)
-
-		username := r.GetFromUsername()
-		firstName := r.GetFromFirstName()
-		lastName := r.GetFromLastName()
-		err := usersClient.CreateUser(c.Request.Context(), CreateUserPayload{
-			ID:           fmt.Sprint(r.GetFromID()),
-			Username:     &username,
-			FirstName:    &firstName,
-			LastName:     &lastName,
-			LanguageCode: r.GetFromLanguageCode(),
-		})
-		if err != nil {
-			slog.Error("unable to track user", "error", err.Error(), "username", username)
-		} else {
-			slog.Info("user tracked", "username", username)
-		}
-
-		c.Next()
-	}
-}
-
 func telegramWebhookController(locClient location.Client, weatherClient weather.Client, convos *conversation.ConvoRepository) func(c *gin.Context) {
 	callbackCtrl := api.NewCallbackController(locClient, weatherClient)
 	messageCtrl := api.NewMessageController(locClient, weatherClient, convos)
 	return func(c *gin.Context) {
 		var p *tgram.WebhookRequest
 
-		if i, ok := c.Get(CtxKeyPayload); ok {
+		if i, ok := c.Get(middleware.CtxKeyPayload); ok {
 			p = i.(*tgram.WebhookRequest)
 		} else {
 			c.JSON(400, gin.H{"error": "bad request"})
@@ -278,65 +239,11 @@ func newTelegramClient() (tgram.Client, error) {
 	return tgram.NewClient(httpClient, telegramBotToken), nil
 }
 
-func newUsersClient() (UsersClient, error) {
+func newUsersClient() (middleware.UsersClient, error) {
 	var host string
 	if host = os.Getenv("USER_SERVICE_HOST"); host == "" {
 		return nil, fmt.Errorf("missing USER_SERVICE_HOST environment variable. Please check your environment.")
 	}
 
-	return NewUsersClient(host), nil
-}
-
-type UsersClient interface {
-	CreateUser(context.Context, CreateUserPayload) error
-}
-
-type CreateUserPayload struct {
-	ID           string
-	Username     *string `json:"username"`
-	FirstName    *string `json:"first_name"`
-	LastName     *string `json:"last_name"`
-	LanguageCode string  `json:"language_code"`
-	IsBot        string  `json:"is_bot"`
-}
-
-type usersClient struct {
-	host string
-	h    *http.Client
-}
-
-func NewUsersClient(host string) UsersClient {
-	h := &http.Client{Timeout: 10 * time.Second}
-	return &usersClient{host: host, h: h}
-}
-
-func (c *usersClient) CreateUser(ctx context.Context, req CreateUserPayload) error {
-	b, err := json.Marshal(req)
-	if err != nil {
-		return err
-	}
-
-	body := bytes.NewBuffer(b)
-	endpoint := fmt.Sprintf("%s/users/%s", c.host, req.ID)
-	r, err := http.NewRequest(http.MethodPut, endpoint, body)
-	if err != nil {
-		return err
-	}
-
-	resp, err := c.h.Do(r)
-	if err != nil {
-		return fmt.Errorf("failed to do POST to %s: %s", endpoint, err.Error())
-	}
-
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
-		responseBody := &bytes.Buffer{}
-		_, err := responseBody.ReadFrom(resp.Body)
-		if err != nil {
-			return err
-		}
-
-		return fmt.Errorf("unexpected response: (%d) %s", resp.StatusCode, responseBody.String())
-	}
-
-	return nil
+	return middleware.NewUsersClient(host), nil
 }
