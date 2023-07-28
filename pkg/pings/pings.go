@@ -12,8 +12,10 @@ import (
 	"golang.org/x/exp/slog"
 )
 
-const name = "Fresnedillas de la Oliva, ES"
-const lat, lon = 40.489117, -4.169078
+const (
+	name     = "Fresnedillas de la Oliva, ES"
+	lat, lon = 40.489117, -4.169078
+)
 
 // London
 // const lat2, lon2 = 51.5285582, -0.2416811
@@ -93,6 +95,24 @@ func (p *backgroundPinger) PingRainyForecasts() error {
 		}
 	}
 
+	lowTempForecast := FindNextLowTemperature(forecasts)
+	if highTempForecast != nil {
+		if len(message) > 0 {
+			message += "\nAlso, on a separate note, "
+		} else {
+			message = "Hi! Just letting you know that "
+		}
+
+		if isToday(lowTempForecast.DateTimeTS) {
+			message += fmt.Sprintf("it's going to be pretty cold today with a min of %.2fºC! ❄️ ",
+				lowTempForecast.MinimumTemperature)
+		} else {
+			message += fmt.Sprintf("next %s temperatures are going to decrease the way to %.2fºC! ❄️ ",
+				lowTempForecast.FormattedDateTime(),
+				lowTempForecast.MinimumTemperature)
+		}
+	}
+
 	if sendMessage {
 		myChatID, err := env.MyTelegramChatID()
 		if err != nil {
@@ -135,13 +155,24 @@ func FindNextHighTemperature(forecasts []*weather.Forecast) *weather.Forecast {
 		return nil
 	}
 
-	previousForecast := forecasts[0]
 	for _, f := range forecasts[:len(forecasts)-1] {
-		if f.MaximumTemperature > 32 && f.MaximumTemperature > previousForecast.MaximumTemperature {
+		if f.MaximumTemperature > 32 {
 			return f
 		}
+	}
 
-		previousForecast = f
+	return nil
+}
+
+func FindNextLowTemperature(forecasts []*weather.Forecast) *weather.Forecast {
+	if len(forecasts) == 0 {
+		return nil
+	}
+
+	for _, f := range forecasts[:len(forecasts)-1] {
+		if f.MinimumTemperature < 10 {
+			return f
+		}
 	}
 
 	return nil
