@@ -3,7 +3,7 @@ package location
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 )
@@ -46,7 +46,7 @@ func (c *psc) FindLocation(query string) (*Location, error) {
 		return nil, err
 	}
 
-	data, err := ioutil.ReadAll(res.Body)
+	data, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (c *psc) ReverseFindLocation(lat, lon float64) (*Location, error) {
 		return nil, err
 	}
 
-	data, err := ioutil.ReadAll(res.Body)
+	data, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
