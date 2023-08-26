@@ -14,24 +14,28 @@ import (
 func Recovery(t tgram.Client, reportChat int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
-			if r := recover(); r != nil {
-				callstack := getCallstack()
-				slog.Error(fmt.Sprint("recovered from panic", callstack))
-
-				if t != nil {
-					_ = t.SendMessage(tgram.SendMessageRequest{
-						ParseMode: tgram.ParseModeHTML,
-						ChatID:    reportChat,
-						Text: fmt.Sprintf(`<b>Recovered from panic: %v</b>
-<code>%s</code>`, r, callstack),
-					})
-				}
-
-				c.AbortWithStatus(http.StatusInternalServerError)
-			}
+			Recover(t, reportChat)
+			c.AbortWithStatus(http.StatusInternalServerError)
 		}()
 
 		c.Next()
+	}
+}
+
+func Recover(t tgram.Client, reportChat int64) {
+	if r := recover(); r != nil {
+		callstack := getCallstack()
+		slog.Error(fmt.Sprint("recovered from panic", callstack))
+
+		if t != nil {
+			_ = t.SendMessage(tgram.SendMessageRequest{
+				ParseMode: tgram.ParseModeHTML,
+				ChatID:    reportChat,
+				Text: fmt.Sprintf(`<b>Recovered from panic: %v</b>
+<code>%s</code>`, r, callstack),
+			})
+		}
+
 	}
 }
 

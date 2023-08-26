@@ -107,6 +107,7 @@ func main() {
 	pingDone := make(chan struct{})
 
 	go func() {
+		defer middleware.Recover(errorTgramClient, myTelegramChatID)
 		defer close(pingDone)
 		slog.Info("starting pinger")
 
