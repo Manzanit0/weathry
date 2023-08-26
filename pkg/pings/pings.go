@@ -96,7 +96,7 @@ func (p *backgroundPinger) PingRainyForecasts() error {
 	}
 
 	lowTempForecast := FindNextLowTemperature(forecasts)
-	if highTempForecast != nil {
+	if lowTempForecast != nil {
 		if len(message) > 0 {
 			message += "\nAlso, on a separate note, "
 		} else {
