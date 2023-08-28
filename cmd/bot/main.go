@@ -54,6 +54,8 @@ func main() {
 
 	convos := conversation.ConvoRepository{DB: db}
 
+	locations := location.NewPgRepository(db)
+
 	owmClient, err := newWeatherClient()
 	if err != nil {
 		panic(err)
@@ -98,7 +100,7 @@ func main() {
 	// authorised the users you want to use the BOT.
 	authorisedUsers := strings.Split(os.Getenv("TELEGRAM_AUTHORISED_USERS"), ",")
 	r.Use(middleware.TelegramAuth(usersClient, authorisedUsers...))
-	r.POST("/telegram/webhook", telegramWebhookController(psClient, owmClient, &convos))
+	r.POST("/telegram/webhook", telegramWebhookController(psClient, owmClient, &convos, locations))
 
 	// background job to ping users on weather changes
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -167,9 +169,14 @@ func webhookResponse(p *tgram.WebhookRequest, text string) gin.H {
 	}
 }
 
-func telegramWebhookController(locClient location.Client, weatherClient weather.Client, convos *conversation.ConvoRepository) func(c *gin.Context) {
+func telegramWebhookController(
+	locClient location.Client,
+	weatherClient weather.Client,
+	convos *conversation.ConvoRepository,
+	locations location.Repository,
+) func(c *gin.Context) {
 	callbackCtrl := api.NewCallbackController(locClient, weatherClient)
-	messageCtrl := api.NewMessageController(locClient, weatherClient, convos)
+	messageCtrl := api.NewMessageController(locClient, weatherClient, convos, locations)
 	return func(c *gin.Context) {
 		var p *tgram.WebhookRequest
 
@@ -202,6 +209,11 @@ func telegramWebhookController(locClient location.Client, weatherClient weather.
 			c.JSON(200, webhookResponse(p, message))
 			return
 
+		case strings.HasPrefix(p.Message.Text, "/home"):
+			message := messageCtrl.ProcessHomeCommand(c.Request.Context(), p)
+			c.JSON(200, webhookResponse(p, message))
+			return
+
 		default:
 			message := messageCtrl.ProcessNonCommand(c.Request.Context(), p)
 			c.JSON(200, webhookResponse(p, message))
@@ -221,13 +233,14 @@ func newWeatherClient() (weather.Client, error) {
 }
 
 func newLocationClient() (location.Client, error) {
-	var positionStackAPIKey string
-	if positionStackAPIKey = os.Getenv("POSITIONSTACK_API_KEY"); positionStackAPIKey == "" {
-		return nil, fmt.Errorf("missing POSITIONSTACK_API_KEY environment variable. Please check your environment.")
-	}
+	return location.NewOpenstreetmapClient(), nil
+	// var positionStackAPIKey string
+	// if positionStackAPIKey = os.Getenv("POSITIONSTACK_API_KEY"); positionStackAPIKey == "" {
+	// 	return nil, fmt.Errorf("missing POSITIONSTACK_API_KEY environment variable. Please check your environment.")
+	// }
 
-	httpClient := whttp.NewLoggingClient()
-	return location.NewPositionStackClient(httpClient, positionStackAPIKey), nil
+	// httpClient := whttp.NewLoggingClient()
+	// return location.NewPositionStackClient(httpClient, positionStackAPIKey), nil
 }
 
 func newTelegramClient() (tgram.Client, error) {
