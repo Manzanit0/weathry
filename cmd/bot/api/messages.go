@@ -85,7 +85,8 @@ func (g *MessageController) ProcessHomeCommand(ctx context.Context, p *tgram.Web
 	if len(query) == 0 {
 		_, err := g.convos.AddQuestion(ctx, fmt.Sprint(p.GetFromID()), "AWAITING_HOME")
 		if err != nil {
-			panic(err)
+			slog.Error("add question", "error", err.Error())
+			return msg.MsgUnableToGetReport
 		}
 
 		home, err := g.locations.GetHome(ctx, p.GetFromID())
@@ -105,6 +106,7 @@ func (g *MessageController) ProcessHomeCommand(ctx context.Context, p *tgram.Web
 		err = g.convos.MarkQuestionAnswered(ctx, fmt.Sprint(p.GetFromID()))
 		if err != nil {
 			slog.Error("unable to mark question as answered", "error", err.Error())
+			return msg.MsgUnableToGetReport
 		}
 	}
 
