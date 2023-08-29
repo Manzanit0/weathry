@@ -21,6 +21,7 @@ import (
 
 func init() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger = logger.With("service", "users")
 	slog.SetDefault(logger)
 }
 

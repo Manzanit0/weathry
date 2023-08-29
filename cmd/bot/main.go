@@ -30,6 +30,7 @@ import (
 
 func init() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger = logger.With("service", "bot")
 	slog.SetDefault(logger)
 }
 
