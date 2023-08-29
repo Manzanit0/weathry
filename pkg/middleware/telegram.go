@@ -107,7 +107,7 @@ func (c *usersClient) CreateUser(ctx context.Context, req CreateUserPayload) err
 
 	resp, err := c.h.Do(r)
 	if err != nil {
-		return fmt.Errorf("failed to do POST to %s: %s", endpoint, err.Error())
+		return err
 	}
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
