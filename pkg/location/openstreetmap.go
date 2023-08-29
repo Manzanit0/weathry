@@ -1,6 +1,8 @@
 package location
 
 import (
+	"fmt"
+
 	"github.com/codingsince1985/geo-golang"
 	"github.com/codingsince1985/geo-golang/openstreetmap"
 )
@@ -18,6 +20,10 @@ func (c *oc) FindLocation(query string) (*Location, error) {
 	location, err := c.geocoder.Geocode(query)
 	if err != nil {
 		return nil, err
+	}
+
+	if location == nil {
+		return nil, fmt.Errorf("unable to geocode address")
 	}
 
 	address, err := c.geocoder.ReverseGeocode(location.Lat, location.Lng)
@@ -38,6 +44,10 @@ func (c *oc) ReverseFindLocation(lat, lon float64) (*Location, error) {
 	address, err := c.geocoder.ReverseGeocode(lat, lon)
 	if err != nil {
 		return nil, err
+	}
+
+	if address == nil {
+		return nil, fmt.Errorf("unable to reverse geocode location")
 	}
 
 	return &Location{

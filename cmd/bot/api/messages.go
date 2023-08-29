@@ -99,7 +99,7 @@ func (g *MessageController) ProcessHomeCommand(ctx context.Context, p *tgram.Web
 			return msg.MsgHomeQuestion
 		}
 
-		return fmt.Sprintf("Your current home is %s. %s", home.Name, msg.MsgHomeQuestion)
+		return fmt.Sprintf("Your current home is %s\\. %s", home.Name, msg.MsgHomeQuestion)
 	}
 
 	if convo, err := g.convos.Find(ctx, fmt.Sprint(p.GetFromID())); err == nil && convo != nil && !convo.Answered {
