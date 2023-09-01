@@ -1,4 +1,4 @@
-package location
+package geocode
 
 import (
 	"encoding/json"
@@ -22,13 +22,15 @@ type psc struct {
 	apiKey string
 }
 
+var _ Client = (*psc)(nil)
+
 func (c *psc) queryWithDefaults() url.Values {
 	v := url.Values{}
 	v.Set("access_key", c.apiKey)
 	return v
 }
 
-func (c *psc) FindLocation(query string) (*Location, error) {
+func (c *psc) Geocode(query string) (*Location, error) {
 	q := c.queryWithDefaults()
 	q.Set("query", query)
 	q.Set("limit", "1")
@@ -78,7 +80,7 @@ func (c *psc) FindLocation(query string) (*Location, error) {
 	}, nil
 }
 
-func (c *psc) ReverseFindLocation(lat, lon float64) (*Location, error) {
+func (c *psc) ReverseGeocode(lat, lon float64) (*Location, error) {
 	q := c.queryWithDefaults()
 	q.Set("query", fmt.Sprintf("%f,%f", lat, lon))
 	url := fmt.Sprintf("http://api.positionstack.com/v1/reverse?%s", q.Encode())

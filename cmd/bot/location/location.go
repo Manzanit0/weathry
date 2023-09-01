@@ -11,11 +11,6 @@ import (
 	"golang.org/x/exp/slog"
 )
 
-type Client interface {
-	FindLocation(query string) (*Location, error)
-	ReverseFindLocation(lat, long float64) (*Location, error)
-}
-
 type Location struct {
 	Latitude    float64
 	Longitude   float64

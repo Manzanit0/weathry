@@ -15,9 +15,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/manzanit0/weathry/cmd/bot/api"
 	"github.com/manzanit0/weathry/cmd/bot/conversation"
+	"github.com/manzanit0/weathry/cmd/bot/location"
 	"github.com/manzanit0/weathry/cmd/bot/msg"
 	"github.com/manzanit0/weathry/pkg/env"
-	"github.com/manzanit0/weathry/pkg/location"
+	"github.com/manzanit0/weathry/pkg/geocode"
 	"github.com/manzanit0/weathry/pkg/middleware"
 	"github.com/manzanit0/weathry/pkg/pings"
 	"github.com/manzanit0/weathry/pkg/tgram"
@@ -171,7 +172,7 @@ func webhookResponse(p *tgram.WebhookRequest, text string) gin.H {
 }
 
 func telegramWebhookController(
-	locClient location.Client,
+	locClient geocode.Client,
 	weatherClient weather.Client,
 	convos *conversation.ConvoRepository,
 	locations location.Repository,
@@ -260,8 +261,8 @@ func newWeatherClient() (weather.Client, error) {
 	return weather.NewOpenWeatherMapClient(httpClient, openWeatherMapAPIKey), nil
 }
 
-func newLocationClient() (location.Client, error) {
-	return location.NewOpenstreetmapClient(), nil
+func newLocationClient() (geocode.Client, error) {
+	return geocode.NewOpenstreetmapClient(), nil
 	// var positionStackAPIKey string
 	// if positionStackAPIKey = os.Getenv("POSITIONSTACK_API_KEY"); positionStackAPIKey == "" {
 	// 	return nil, fmt.Errorf("missing POSITIONSTACK_API_KEY environment variable. Please check your environment.")

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/manzanit0/weathry/pkg/env"
-	"github.com/manzanit0/weathry/pkg/location"
+	"github.com/manzanit0/weathry/pkg/geocode"
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
 	"golang.org/x/exp/slog"
@@ -24,13 +24,13 @@ type Pinger interface {
 	MonitorWeather(context.Context) error
 }
 
-func NewBackgroundPinger(w weather.Client, l location.Client, t tgram.Client) *backgroundPinger {
+func NewBackgroundPinger(w weather.Client, l geocode.Client, t tgram.Client) *backgroundPinger {
 	return &backgroundPinger{w: w, l: l, t: t}
 }
 
 type backgroundPinger struct {
 	w weather.Client
-	l location.Client
+	l geocode.Client
 	t tgram.Client
 }
 

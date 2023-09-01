@@ -7,22 +7,23 @@ import (
 	"fmt"
 
 	"github.com/manzanit0/weathry/cmd/bot/conversation"
+	"github.com/manzanit0/weathry/cmd/bot/location"
 	"github.com/manzanit0/weathry/cmd/bot/msg"
 	"github.com/manzanit0/weathry/cmd/bot/services"
-	"github.com/manzanit0/weathry/pkg/location"
+	"github.com/manzanit0/weathry/pkg/geocode"
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
 	"golang.org/x/exp/slog"
 )
 
 type MessageController struct {
-	locationClient location.Client
+	geocoder       geocode.Client
 	convos         *conversation.ConvoRepository
 	locations      location.Repository
 	weatherService *services.WeatherService
 }
 
-func NewMessageController(l location.Client, w weather.Client, c *conversation.ConvoRepository, ll location.Repository) *MessageController {
+func NewMessageController(l geocode.Client, w weather.Client, c *conversation.ConvoRepository, ll location.Repository) *MessageController {
 	s := services.NewWeatherService(l, w)
 	return &MessageController{l, c, ll, s}
 }
@@ -90,7 +91,7 @@ func (g *MessageController) setHome(ctx context.Context, p *tgram.WebhookRequest
 
 	// if it just has the name, we hydrate the database.
 	if location.Latitude == 0 || location.Longitude == 0 {
-		remote, err := g.locationClient.FindLocation(locationName)
+		remote, err := g.geocoder.Geocode(locationName)
 		if err != nil {
 			slog.Error("find location in third party", "error", err.Error())
 			return msg.MsgUnableToGetReport

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/manzanit0/weathry/pkg/location"
+	"github.com/manzanit0/weathry/cmd/bot/location"
 	"github.com/manzanit0/weathry/pkg/weather"
 	"github.com/olekukonko/tablewriter"
 )

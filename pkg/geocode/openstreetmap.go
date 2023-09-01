@@ -1,4 +1,4 @@
-package location
+package geocode
 
 import (
 	"fmt"
@@ -16,7 +16,9 @@ type oc struct {
 	geocoder geo.Geocoder
 }
 
-func (c *oc) FindLocation(query string) (*Location, error) {
+var _ Client = (*oc)(nil)
+
+func (c *oc) Geocode(query string) (*Location, error) {
 	location, err := c.geocoder.Geocode(query)
 	if err != nil {
 		return nil, err
@@ -40,7 +42,7 @@ func (c *oc) FindLocation(query string) (*Location, error) {
 	}, nil
 }
 
-func (c *oc) ReverseFindLocation(lat, lon float64) (*Location, error) {
+func (c *oc) ReverseGeocode(lat, lon float64) (*Location, error) {
 	address, err := c.geocoder.ReverseGeocode(lat, lon)
 	if err != nil {
 		return nil, err
