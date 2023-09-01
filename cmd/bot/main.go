@@ -199,6 +199,18 @@ func telegramWebhookController(
 			return
 		}
 
+		if query := tgram.ExtractCommandQuery(p.Message.Text); len(query) == 0 {
+			question, prompt := getQuestionAndPrompt(p.Message.Text)
+			_, err := convos.AddQuestion(c.Request.Context(), fmt.Sprint(p.GetFromID()), question)
+			if err != nil {
+				c.JSON(200, webhookResponse(p, msg.MsgUnexpectedError))
+				return
+			}
+
+			c.JSON(200, webhookResponse(p, prompt))
+			return
+		}
+
 		switch {
 		case strings.HasPrefix(p.Message.Text, "/daily"):
 			message := messageCtrl.ProcessDailyCommand(c.Request.Context(), p)
@@ -220,6 +232,19 @@ func telegramWebhookController(
 			c.JSON(200, webhookResponse(p, message))
 			return
 		}
+	}
+}
+
+func getQuestionAndPrompt(cmd string) (string, string) {
+	switch cmd {
+	case "/daily":
+		return conversation.QuestionHourlyWeather, msg.MsgLocationQuestionDay
+	case "/hourly":
+		return conversation.QuestionDailyWeather, msg.MsgLocationQuestionWeek
+	case "/home":
+		return conversation.QuestionHome, msg.MsgHomeQuestion
+	default:
+		return "", "'"
 	}
 }
 

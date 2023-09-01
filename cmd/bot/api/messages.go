@@ -28,14 +28,6 @@ func NewMessageController(l location.Client, w weather.Client, c *conversation.C
 
 func (g *MessageController) ProcessDailyCommand(ctx context.Context, p *tgram.WebhookRequest) string {
 	query := tgram.ExtractCommandQuery(p.Message.Text)
-	if len(query) == 0 {
-		_, err := g.convos.AddQuestion(ctx, fmt.Sprint(p.GetFromID()), "AWAITING_DAILY_WEATHER_CITY")
-		if err != nil {
-			panic(err)
-		}
-
-		return msg.MsgLocationQuestionWeek
-	}
 
 	if convo, err := g.convos.Find(ctx, fmt.Sprint(p.GetFromID())); err == nil && convo != nil && !convo.Answered {
 		err = g.convos.MarkQuestionAnswered(ctx, fmt.Sprint(p.GetFromID()))
@@ -55,14 +47,6 @@ func (g *MessageController) ProcessDailyCommand(ctx context.Context, p *tgram.We
 
 func (g *MessageController) ProcessHourlyCommand(ctx context.Context, p *tgram.WebhookRequest) string {
 	query := tgram.ExtractCommandQuery(p.Message.Text)
-	if len(query) == 0 {
-		_, err := g.convos.AddQuestion(ctx, fmt.Sprint(p.GetFromID()), "AWAITING_HOURLY_WEATHER_CITY")
-		if err != nil {
-			panic(err)
-		}
-
-		return msg.MsgLocationQuestionDay
-	}
 
 	if convo, err := g.convos.Find(ctx, fmt.Sprint(p.GetFromID())); err == nil && convo != nil && !convo.Answered {
 		err = g.convos.MarkQuestionAnswered(ctx, fmt.Sprint(p.GetFromID()))
@@ -82,25 +66,6 @@ func (g *MessageController) ProcessHourlyCommand(ctx context.Context, p *tgram.W
 
 func (g *MessageController) ProcessHomeCommand(ctx context.Context, p *tgram.WebhookRequest) string {
 	query := tgram.ExtractCommandQuery(p.Message.Text)
-	if len(query) == 0 {
-		_, err := g.convos.AddQuestion(ctx, fmt.Sprint(p.GetFromID()), "AWAITING_HOME")
-		if err != nil {
-			slog.Error("add question", "error", err.Error())
-			return msg.MsgUnableToGetReport
-		}
-
-		home, err := g.locations.GetHome(ctx, p.GetFromID())
-		if err != nil {
-			slog.Error("query home", "error", err.Error())
-			return msg.MsgHomeQuestion
-		}
-
-		if home == nil {
-			return msg.MsgHomeQuestion
-		}
-
-		return fmt.Sprintf("Your current home is %s\\. %s", home.Name, msg.MsgHomeQuestion)
-	}
 
 	if convo, err := g.convos.Find(ctx, fmt.Sprint(p.GetFromID())); err == nil && convo != nil && !convo.Answered {
 		err = g.convos.MarkQuestionAnswered(ctx, fmt.Sprint(p.GetFromID()))
@@ -166,7 +131,7 @@ func (g *MessageController) ProcessNonCommand(ctx context.Context, p *tgram.Webh
 		return msg.MsgUnknownText
 	}
 
-	if convo.LastQuestionAsked == "AWAITING_HOME" {
+	if convo.LastQuestionAsked == conversation.QuestionHome {
 		return g.setHome(ctx, p, p.Message.Text)
 	}
 
@@ -186,9 +151,9 @@ func (g *MessageController) ProcessNonCommand(ctx context.Context, p *tgram.Webh
 
 func forecastFromQuestion(locClient location.Client, weatherClient weather.Client, question, response string) (string, error) {
 	switch question {
-	case "AWAITING_HOURLY_WEATHER_CITY":
+	case conversation.QuestionHourlyWeather:
 		return action.GetHourlyWeatherByLocationName(locClient, weatherClient, response)
-	case "AWAITING_DAILY_WEATHER_CITY":
+	case conversation.QuestionDailyWeather:
 		return action.GetDailyWeather(locClient, weatherClient, response)
 	default:
 		return "hey!", nil

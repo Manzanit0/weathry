@@ -12,13 +12,14 @@ import (
 )
 
 const (
-	MsgLocationQuestionWeek   = "What location do you want me to check this week\\'s weather for?"
-	MsgLocationQuestionDay    = "What location do you want me to check today\\'s weather for?"
-	MsgHomeQuestion           = "What location do you want to save as your home?"
-	MsgUnknownText            = "I\\'m not sure what you mean with that\\. Try hitting me up with the /hourly or /daily commands if you need me to check the weather for you \\:\\)"
-	MsgUnableToGetReport      = "I\\'m sorry, the network isn\\'t doing it\\'s best job and I can\\'t get your report just now\\. Please try again in a bit\\."
-	MsgUnsupportedInteraction = "Unsupported type of interaction"
-	MsgUnexpectedError        = "Whops\\! Something\\'s not working like it should\\. Try again in a bit\\."
+	MsgLocationQuestionGeneric = "What location do you want me to check the weather for?"
+	MsgLocationQuestionWeek    = "What location do you want me to check this week\\'s weather for?"
+	MsgLocationQuestionDay     = "What location do you want me to check today\\'s weather for?"
+	MsgHomeQuestion            = "What location do you want to save as your home?"
+	MsgUnknownText             = "I\\'m not sure what you mean with that\\. Try hitting me up with the /hourly or /daily commands if you need me to check the weather for you \\:\\)"
+	MsgUnableToGetReport       = "I\\'m sorry, the network isn\\'t doing it\\'s best job and I can\\'t get your report just now\\. Please try again in a bit\\."
+	MsgUnsupportedInteraction  = "Unsupported type of interaction"
+	MsgUnexpectedError         = "Whops\\! Something\\'s not working like it should\\. Try again in a bit\\."
 )
 
 func NewEmojifiedDailyMessage(f []*weather.Forecast) string {

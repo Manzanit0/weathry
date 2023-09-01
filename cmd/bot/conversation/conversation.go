@@ -7,6 +7,12 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+const (
+	QuestionHourlyWeather = "AWAITING_HOURLY_WEATHER_CITY"
+	QuestionDailyWeather  = "AWAITING_DAILY_WEATHER_CITY"
+	QuestionHome          = "AWAITING_HOME"
+)
+
 type ConversationState struct {
 	TelegramChatID    string `db:"chat_id"`
 	LastQuestionAsked string `db:"last_question_asked"`
