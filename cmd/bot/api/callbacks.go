@@ -13,14 +13,12 @@ import (
 )
 
 type CallbackController struct {
-	locationClient location.Client
-	weatherClient  weather.Client
 	weatherService *services.WeatherService
 }
 
 func NewCallbackController(l location.Client, w weather.Client) *CallbackController {
-	s := services.NewWeatherService(l, w)
-	return &CallbackController{l, w, s}
+	srv := services.NewWeatherService(l, w)
+	return &CallbackController{weatherService: srv}
 }
 
 func (g *CallbackController) ProcessCallbackQuery(p *tgram.WebhookRequest) string {
