@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -42,10 +43,10 @@ func (r *ConvoRepository) MarkQuestionAnswered(ctx context.Context, chatID strin
 	query := `
 		UPDATE conversation_states
 		SET answered = true
-		WHERE chat_id = $1`
+		WHERE chat_id = $1 AND answered = false`
 	db := sqlx.NewDb(r.DB, "postgres")
 	_, err := db.ExecContext(ctx, query, chatID)
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
 
@@ -57,8 +58,12 @@ func (r *ConvoRepository) Find(ctx context.Context, chatID string) (*Conversatio
 
 	db := sqlx.NewDb(r.DB, "postgres")
 	err := db.GetContext(ctx, &s, `SELECT chat_id, last_question_asked, answered FROM conversation_states WHERE chat_id = $1`, chatID)
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
+	}
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
 	}
 
 	return &s, nil
