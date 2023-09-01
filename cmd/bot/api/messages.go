@@ -27,15 +27,13 @@ func NewMessageController(l location.Client, w weather.Client, c *conversation.C
 }
 
 func (g *MessageController) ProcessDailyCommand(ctx context.Context, p *tgram.WebhookRequest) string {
-	query := tgram.ExtractCommandQuery(p.Message.Text)
-
-	if convo, err := g.convos.Find(ctx, fmt.Sprint(p.GetFromID())); err == nil && convo != nil && !convo.Answered {
-		err = g.convos.MarkQuestionAnswered(ctx, fmt.Sprint(p.GetFromID()))
-		if err != nil {
-			slog.Error("unable to mark question as answered", "error", err.Error())
-		}
+	err := g.convos.MarkQuestionAnswered(ctx, fmt.Sprint(p.GetFromID()))
+	if err != nil {
+		slog.Error("unable to mark question as answered", "error", err.Error())
+		return msg.MsgUnexpectedError
 	}
 
+	query := tgram.ExtractCommandQuery(p.Message.Text)
 	message, err := action.GetDailyWeather(g.locationClient, g.weatherClient, query)
 	if err != nil {
 		slog.Error("get upcoming weather", "error", err.Error())
@@ -46,15 +44,13 @@ func (g *MessageController) ProcessDailyCommand(ctx context.Context, p *tgram.We
 }
 
 func (g *MessageController) ProcessHourlyCommand(ctx context.Context, p *tgram.WebhookRequest) string {
-	query := tgram.ExtractCommandQuery(p.Message.Text)
-
-	if convo, err := g.convos.Find(ctx, fmt.Sprint(p.GetFromID())); err == nil && convo != nil && !convo.Answered {
-		err = g.convos.MarkQuestionAnswered(ctx, fmt.Sprint(p.GetFromID()))
-		if err != nil {
-			slog.Error("unable to mark question as answered", "error", err.Error())
-		}
+	err := g.convos.MarkQuestionAnswered(ctx, fmt.Sprint(p.GetFromID()))
+	if err != nil {
+		slog.Error("unable to mark question as answered", "error", err.Error())
+		return msg.MsgUnexpectedError
 	}
 
+	query := tgram.ExtractCommandQuery(p.Message.Text)
 	message, err := action.GetHourlyWeatherByLocationName(g.locationClient, g.weatherClient, query)
 	if err != nil {
 		slog.Error("get upcoming weather", "error", err.Error())
@@ -65,16 +61,13 @@ func (g *MessageController) ProcessHourlyCommand(ctx context.Context, p *tgram.W
 }
 
 func (g *MessageController) ProcessHomeCommand(ctx context.Context, p *tgram.WebhookRequest) string {
-	query := tgram.ExtractCommandQuery(p.Message.Text)
-
-	if convo, err := g.convos.Find(ctx, fmt.Sprint(p.GetFromID())); err == nil && convo != nil && !convo.Answered {
-		err = g.convos.MarkQuestionAnswered(ctx, fmt.Sprint(p.GetFromID()))
-		if err != nil {
-			slog.Error("unable to mark question as answered", "error", err.Error())
-			return msg.MsgUnableToGetReport
-		}
+	err := g.convos.MarkQuestionAnswered(ctx, fmt.Sprint(p.GetFromID()))
+	if err != nil {
+		slog.Error("unable to mark question as answered", "error", err.Error())
+		return msg.MsgUnexpectedError
 	}
 
+	query := tgram.ExtractCommandQuery(p.Message.Text)
 	return g.setHome(ctx, p, query)
 }
 
@@ -126,7 +119,7 @@ func (g *MessageController) setHome(ctx context.Context, p *tgram.WebhookRequest
 func (g *MessageController) ProcessNonCommand(ctx context.Context, p *tgram.WebhookRequest) string {
 	convo, err := g.convos.Find(ctx, fmt.Sprint(p.GetFromID()))
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		panic(err)
+		return msg.MsgUnexpectedError
 	} else if errors.Is(err, sql.ErrNoRows) || (convo != nil && convo.Answered) {
 		return msg.MsgUnknownText
 	}
