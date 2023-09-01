@@ -10,16 +10,16 @@ import (
 )
 
 type WeatherService struct {
-	locationClient geocode.Client
-	weatherClient  weather.Client
+	geocoder      geocode.Client
+	weatherClient weather.Client
 }
 
 func NewWeatherService(l geocode.Client, w weather.Client) *WeatherService {
-	return &WeatherService{locationClient: l, weatherClient: w}
+	return &WeatherService{geocoder: l, weatherClient: w}
 }
 
 func (a *WeatherService) GetDailyWeatherByLocationName(locationName string) (string, error) {
-	location, err := a.locationClient.Geocode(locationName)
+	location, err := a.geocoder.Geocode(locationName)
 	if err != nil {
 		return "", fmt.Errorf("find location: %w", err)
 	}
@@ -33,7 +33,7 @@ func (a *WeatherService) GetDailyWeatherByLocationName(locationName string) (str
 }
 
 func (a *WeatherService) GetDailyWeatherByCoordinates(latitude, longitude float64) (string, error) {
-	location, err := a.locationClient.ReverseGeocode(latitude, longitude)
+	location, err := a.geocoder.ReverseGeocode(latitude, longitude)
 	if err != nil {
 		return "", fmt.Errorf("find location: %w", err)
 	}
@@ -47,7 +47,7 @@ func (a *WeatherService) GetDailyWeatherByCoordinates(latitude, longitude float6
 }
 
 func (a *WeatherService) GetHourlyWeatherByLocationName(locationName string) (string, error) {
-	location, err := a.locationClient.Geocode(locationName)
+	location, err := a.geocoder.Geocode(locationName)
 	if err != nil {
 		return "", fmt.Errorf("find location: %w", err)
 	}
@@ -56,7 +56,7 @@ func (a *WeatherService) GetHourlyWeatherByLocationName(locationName string) (st
 }
 
 func (a *WeatherService) GetHourlyWeatherByCoordinates(latitude, longitude float64) (string, error) {
-	location, err := a.locationClient.ReverseGeocode(latitude, longitude)
+	location, err := a.geocoder.ReverseGeocode(latitude, longitude)
 	if err != nil {
 		return "", fmt.Errorf("find location: %w", err)
 	}

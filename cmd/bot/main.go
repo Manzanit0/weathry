@@ -63,7 +63,7 @@ func main() {
 		panic(err)
 	}
 
-	psClient, err := newLocationClient()
+	geocoder, err := newGeocoder()
 	if err != nil {
 		panic(err)
 	}
@@ -102,7 +102,7 @@ func main() {
 	// authorised the users you want to use the BOT.
 	authorisedUsers := strings.Split(os.Getenv("TELEGRAM_AUTHORISED_USERS"), ",")
 	r.Use(middleware.TelegramAuth(usersClient, authorisedUsers...))
-	r.POST("/telegram/webhook", telegramWebhookController(psClient, owmClient, &convos, locations))
+	r.POST("/telegram/webhook", telegramWebhookController(geocoder, owmClient, &convos, locations))
 
 	// background job to ping users on weather changes
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -115,7 +115,7 @@ func main() {
 		defer close(pingDone)
 		slog.Info("starting pinger")
 
-		pinger := pings.NewBackgroundPinger(owmClient, psClient, tgramClient)
+		pinger := pings.NewBackgroundPinger(owmClient, geocoder, tgramClient)
 		if err := pinger.MonitorWeather(ctx); err != nil {
 			if errors.Is(err, context.Canceled) {
 				slog.Info("pinger shutdown gracefully")
@@ -172,13 +172,13 @@ func webhookResponse(p *tgram.WebhookRequest, text string) gin.H {
 }
 
 func telegramWebhookController(
-	locClient geocode.Client,
+	geocoder geocode.Client,
 	weatherClient weather.Client,
 	convos *conversation.ConvoRepository,
 	locations location.Repository,
 ) func(c *gin.Context) {
-	callbackCtrl := api.NewCallbackController(locClient, weatherClient)
-	messageCtrl := api.NewMessageController(locClient, weatherClient, convos, locations)
+	callbackCtrl := api.NewCallbackController(geocoder, weatherClient)
+	messageCtrl := api.NewMessageController(geocoder, weatherClient, convos, locations)
 	return func(c *gin.Context) {
 		var p *tgram.WebhookRequest
 
@@ -261,7 +261,7 @@ func newWeatherClient() (weather.Client, error) {
 	return weather.NewOpenWeatherMapClient(httpClient, openWeatherMapAPIKey), nil
 }
 
-func newLocationClient() (geocode.Client, error) {
+func newGeocoder() (geocode.Client, error) {
 	return geocode.NewOpenstreetmapClient(), nil
 	// var positionStackAPIKey string
 	// if positionStackAPIKey = os.Getenv("POSITIONSTACK_API_KEY"); positionStackAPIKey == "" {
