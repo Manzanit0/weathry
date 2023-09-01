@@ -199,9 +199,11 @@ func telegramWebhookController(
 			return
 		}
 
+		ctx := c.Request.Context()
+
 		if query := tgram.ExtractCommandQuery(p.Message.Text); len(query) == 0 {
 			question, prompt := getQuestionAndPrompt(p.Message.Text)
-			_, err := convos.AddQuestion(c.Request.Context(), fmt.Sprint(p.GetFromID()), question)
+			_, err := convos.AddQuestion(ctx, fmt.Sprint(p.GetFromID()), question)
 			if err != nil {
 				c.JSON(200, webhookResponse(p, msg.MsgUnexpectedError))
 				return
@@ -213,22 +215,22 @@ func telegramWebhookController(
 
 		switch {
 		case strings.HasPrefix(p.Message.Text, "/daily"):
-			message := messageCtrl.ProcessDailyCommand(c.Request.Context(), p)
+			message := messageCtrl.ProcessDailyCommand(ctx, p)
 			c.JSON(200, webhookResponse(p, message))
 			return
 
 		case strings.HasPrefix(p.Message.Text, "/hourly"):
-			message := messageCtrl.ProcessHourlyCommand(c.Request.Context(), p)
+			message := messageCtrl.ProcessHourlyCommand(ctx, p)
 			c.JSON(200, webhookResponse(p, message))
 			return
 
 		case strings.HasPrefix(p.Message.Text, "/home"):
-			message := messageCtrl.ProcessHomeCommand(c.Request.Context(), p)
+			message := messageCtrl.ProcessHomeCommand(ctx, p)
 			c.JSON(200, webhookResponse(p, message))
 			return
 
 		default:
-			message := messageCtrl.ProcessNonCommand(c.Request.Context(), p)
+			message := messageCtrl.ProcessNonCommand(ctx, p)
 			c.JSON(200, webhookResponse(p, message))
 			return
 		}
