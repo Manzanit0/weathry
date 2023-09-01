@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/manzanit0/weathry/cmd/bot/action"
 	"github.com/manzanit0/weathry/cmd/bot/conversation"
 	"github.com/manzanit0/weathry/cmd/bot/msg"
+	"github.com/manzanit0/weathry/cmd/bot/services"
 	"github.com/manzanit0/weathry/pkg/location"
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
@@ -17,13 +17,14 @@ import (
 
 type MessageController struct {
 	locationClient location.Client
-	weatherClient  weather.Client
 	convos         *conversation.ConvoRepository
 	locations      location.Repository
+	weatherService *services.WeatherService
 }
 
 func NewMessageController(l location.Client, w weather.Client, c *conversation.ConvoRepository, ll location.Repository) *MessageController {
-	return &MessageController{l, w, c, ll}
+	s := services.NewWeatherService(l, w)
+	return &MessageController{l, c, ll, s}
 }
 
 func (g *MessageController) ProcessDailyCommand(ctx context.Context, p *tgram.WebhookRequest) string {
@@ -34,7 +35,7 @@ func (g *MessageController) ProcessDailyCommand(ctx context.Context, p *tgram.We
 	}
 
 	query := tgram.ExtractCommandQuery(p.Message.Text)
-	message, err := action.GetDailyWeather(g.locationClient, g.weatherClient, query)
+	message, err := g.weatherService.GetDailyWeatherByLocationName(query)
 	if err != nil {
 		slog.Error("get upcoming weather", "error", err.Error())
 		return msg.MsgUnableToGetReport
@@ -51,7 +52,7 @@ func (g *MessageController) ProcessHourlyCommand(ctx context.Context, p *tgram.W
 	}
 
 	query := tgram.ExtractCommandQuery(p.Message.Text)
-	message, err := action.GetHourlyWeatherByLocationName(g.locationClient, g.weatherClient, query)
+	message, err := g.weatherService.GetHourlyWeatherByLocationName(query)
 	if err != nil {
 		slog.Error("get upcoming weather", "error", err.Error())
 		return msg.MsgUnableToGetReport
@@ -128,7 +129,7 @@ func (g *MessageController) ProcessNonCommand(ctx context.Context, p *tgram.Webh
 		return g.setHome(ctx, p, p.Message.Text)
 	}
 
-	message, err := forecastFromQuestion(g.locationClient, g.weatherClient, convo.LastQuestionAsked, p.Message.Text)
+	message, err := g.forecastFromQuestion(convo.LastQuestionAsked, p.Message.Text)
 	if err != nil {
 		slog.Error("get forecast from question", "error", err.Error())
 		return msg.MsgUnableToGetReport
@@ -142,12 +143,12 @@ func (g *MessageController) ProcessNonCommand(ctx context.Context, p *tgram.Webh
 	return message
 }
 
-func forecastFromQuestion(locClient location.Client, weatherClient weather.Client, question, response string) (string, error) {
+func (g *MessageController) forecastFromQuestion(question, response string) (string, error) {
 	switch question {
 	case conversation.QuestionHourlyWeather:
-		return action.GetHourlyWeatherByLocationName(locClient, weatherClient, response)
+		return g.weatherService.GetHourlyWeatherByLocationName(response)
 	case conversation.QuestionDailyWeather:
-		return action.GetDailyWeather(locClient, weatherClient, response)
+		return g.weatherService.GetDailyWeatherByLocationName(response)
 	default:
 		return "hey!", nil
 	}

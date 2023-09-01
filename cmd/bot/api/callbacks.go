@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/manzanit0/weathry/cmd/bot/action"
 	"github.com/manzanit0/weathry/cmd/bot/msg"
+	"github.com/manzanit0/weathry/cmd/bot/services"
 	"github.com/manzanit0/weathry/pkg/location"
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
@@ -15,10 +15,12 @@ import (
 type CallbackController struct {
 	locationClient location.Client
 	weatherClient  weather.Client
+	weatherService *services.WeatherService
 }
 
 func NewCallbackController(l location.Client, w weather.Client) *CallbackController {
-	return &CallbackController{l, w}
+	s := services.NewWeatherService(l, w)
+	return &CallbackController{l, w, s}
 }
 
 func (g *CallbackController) ProcessCallbackQuery(p *tgram.WebhookRequest) string {
@@ -48,7 +50,7 @@ func (g *CallbackController) ProcessCallbackQuery(p *tgram.WebhookRequest) strin
 
 	switch s[0] {
 	case "hourly":
-		message, err := action.GetHourlyWeatherByCoordinates(g.locationClient, g.weatherClient, lat, lon)
+		message, err := g.weatherService.GetHourlyWeatherByCoordinates(lat, lon)
 		if err != nil {
 			slog.Error("get hourly weather", "error", err.Error())
 			return msg.MsgUnableToGetReport
@@ -56,7 +58,7 @@ func (g *CallbackController) ProcessCallbackQuery(p *tgram.WebhookRequest) strin
 
 		return message
 	case "daily":
-		message, err := action.GetDailyWeatherByCoordinates(g.locationClient, g.weatherClient, lat, lon)
+		message, err := g.weatherService.GetDailyWeatherByCoordinates(lat, lon)
 		if err != nil {
 			slog.Error("get daily weather", "error", err.Error())
 			return msg.MsgUnableToGetReport

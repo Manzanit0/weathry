@@ -1,4 +1,4 @@
-package action
+package services
 
 import (
 	"fmt"
@@ -8,13 +8,22 @@ import (
 	"github.com/manzanit0/weathry/pkg/weather"
 )
 
-func GetDailyWeather(locClient location.Client, weatherClient weather.Client, query string) (string, error) {
-	location, err := locClient.FindLocation(query)
+type WeatherService struct {
+	locationClient location.Client
+	weatherClient  weather.Client
+}
+
+func NewWeatherService(l location.Client, w weather.Client) *WeatherService {
+	return &WeatherService{locationClient: l, weatherClient: w}
+}
+
+func (a *WeatherService) GetDailyWeatherByLocationName(locationName string) (string, error) {
+	location, err := a.locationClient.FindLocation(locationName)
 	if err != nil {
 		return "", fmt.Errorf("find location: %w", err)
 	}
 
-	forecasts, err := weatherClient.GetUpcomingWeather(location.Latitude, location.Longitude)
+	forecasts, err := a.weatherClient.GetUpcomingWeather(location.Latitude, location.Longitude)
 	if err != nil {
 		return "", fmt.Errorf("get weather: %w", err)
 	}
@@ -22,13 +31,13 @@ func GetDailyWeather(locClient location.Client, weatherClient weather.Client, qu
 	return msg.NewForecastTableMessage(location, forecasts, msg.WithTemperatureDiff()), nil
 }
 
-func GetDailyWeatherByCoordinates(locClient location.Client, weatherClient weather.Client, latitude, longitude float64) (string, error) {
-	location, err := locClient.ReverseFindLocation(latitude, longitude)
+func (a *WeatherService) GetDailyWeatherByCoordinates(latitude, longitude float64) (string, error) {
+	location, err := a.locationClient.ReverseFindLocation(latitude, longitude)
 	if err != nil {
 		return "", fmt.Errorf("find location: %w", err)
 	}
 
-	forecasts, err := weatherClient.GetUpcomingWeather(location.Latitude, location.Longitude)
+	forecasts, err := a.weatherClient.GetUpcomingWeather(location.Latitude, location.Longitude)
 	if err != nil {
 		return "", fmt.Errorf("get weather: %w", err)
 	}
@@ -36,22 +45,22 @@ func GetDailyWeatherByCoordinates(locClient location.Client, weatherClient weath
 	return msg.NewForecastTableMessage(location, forecasts, msg.WithTemperatureDiff()), nil
 }
 
-func GetHourlyWeatherByLocationName(locClient location.Client, weatherClient weather.Client, locationName string) (string, error) {
-	location, err := locClient.FindLocation(locationName)
+func (a *WeatherService) GetHourlyWeatherByLocationName(locationName string) (string, error) {
+	location, err := a.locationClient.FindLocation(locationName)
 	if err != nil {
 		return "", fmt.Errorf("find location: %w", err)
 	}
 
-	return getHourlyWeather(weatherClient, location)
+	return getHourlyWeather(a.weatherClient, location)
 }
 
-func GetHourlyWeatherByCoordinates(locClient location.Client, weatherClient weather.Client, latitude, longitude float64) (string, error) {
-	location, err := locClient.ReverseFindLocation(latitude, longitude)
+func (a *WeatherService) GetHourlyWeatherByCoordinates(latitude, longitude float64) (string, error) {
+	location, err := a.locationClient.ReverseFindLocation(latitude, longitude)
 	if err != nil {
 		return "", fmt.Errorf("find location: %w", err)
 	}
 
-	return getHourlyWeather(weatherClient, location)
+	return getHourlyWeather(a.weatherClient, location)
 }
 
 func getHourlyWeather(weatherClient weather.Client, location *location.Location) (string, error) {
