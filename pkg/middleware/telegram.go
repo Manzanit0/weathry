@@ -1,17 +1,13 @@
 package middleware
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/manzanit0/weathry/pkg/tgram"
-	"github.com/manzanit0/weathry/pkg/whttp"
 	"golang.org/x/exp/slog"
 )
 
@@ -79,46 +75,4 @@ type CreateUserPayload struct {
 	LastName     *string `json:"last_name"`
 	LanguageCode string  `json:"language_code"`
 	IsBot        string  `json:"is_bot"`
-}
-
-type usersClient struct {
-	host string
-	h    *http.Client
-}
-
-func NewUsersClient(host string) UsersClient {
-	h := whttp.NewLoggingClient()
-	h.Timeout = 1 * time.Second // This should be taking millis...
-	return &usersClient{host: host, h: h}
-}
-
-func (c *usersClient) CreateUser(ctx context.Context, req CreateUserPayload) error {
-	b, err := json.Marshal(req)
-	if err != nil {
-		return err
-	}
-
-	body := bytes.NewBuffer(b)
-	endpoint := fmt.Sprintf("%s/users/%s", c.host, req.ID)
-	r, err := http.NewRequest(http.MethodPut, endpoint, body)
-	if err != nil {
-		return err
-	}
-
-	resp, err := c.h.Do(r)
-	if err != nil {
-		return err
-	}
-
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
-		responseBody := &bytes.Buffer{}
-		_, err := responseBody.ReadFrom(resp.Body)
-		if err != nil {
-			return err
-		}
-
-		return fmt.Errorf("unexpected response: (%d) %s", resp.StatusCode, responseBody.String())
-	}
-
-	return nil
 }

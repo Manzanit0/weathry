@@ -17,6 +17,7 @@ import (
 	"github.com/manzanit0/weathry/cmd/bot/conversation"
 	"github.com/manzanit0/weathry/cmd/bot/location"
 	"github.com/manzanit0/weathry/cmd/bot/msg"
+	"github.com/manzanit0/weathry/cmd/bot/users"
 	"github.com/manzanit0/weathry/pkg/env"
 	"github.com/manzanit0/weathry/pkg/geocode"
 	"github.com/manzanit0/weathry/pkg/middleware"
@@ -78,15 +79,12 @@ func main() {
 		panic(err)
 	}
 
-	usersClient, err := newUsersClient()
-	if err != nil {
-		panic(err)
-	}
-
 	myTelegramChatID, err := env.MyTelegramChatID()
 	if err != nil {
 		panic(err)
 	}
+
+	usersClient := users.NewUsersClient(db)
 
 	r := gin.New()
 	r.Use(middleware.Recovery(errorTgramClient, myTelegramChatID))
@@ -280,13 +278,4 @@ func newTelegramClient() (tgram.Client, error) {
 
 	httpClient := whttp.NewLoggingClient()
 	return tgram.NewClient(httpClient, telegramBotToken), nil
-}
-
-func newUsersClient() (middleware.UsersClient, error) {
-	var host string
-	if host = os.Getenv("USER_SERVICE_HOST"); host == "" {
-		return nil, fmt.Errorf("missing USER_SERVICE_HOST environment variable. Please check your environment.")
-	}
-
-	return middleware.NewUsersClient(host), nil
 }
