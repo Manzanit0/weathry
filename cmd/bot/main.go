@@ -212,27 +212,24 @@ func telegramWebhookController(
 			return
 		}
 
+		var message string
+
 		switch {
 		case strings.HasPrefix(p.Message.Text, "/daily"):
-			message := messageCtrl.ProcessDailyCommand(ctx, p)
-			c.JSON(200, webhookResponse(p, message))
-			return
+			message = messageCtrl.ProcessDailyCommand(ctx, p)
 
 		case strings.HasPrefix(p.Message.Text, "/hourly"):
-			message := messageCtrl.ProcessHourlyCommand(ctx, p)
-			c.JSON(200, webhookResponse(p, message))
-			return
+			message = messageCtrl.ProcessHourlyCommand(ctx, p)
 
 		case strings.HasPrefix(p.Message.Text, "/home"):
-			message := messageCtrl.ProcessHomeCommand(ctx, p)
-			c.JSON(200, webhookResponse(p, message))
-			return
+			message = messageCtrl.ProcessHomeCommand(ctx, p)
 
 		default:
-			message := messageCtrl.ProcessNonCommand(ctx, p)
-			c.JSON(200, webhookResponse(p, message))
-			return
+			message = messageCtrl.ProcessNonCommand(ctx, p)
 		}
+
+		c.JSON(200, webhookResponse(p, message))
+		return
 	}
 }
 
