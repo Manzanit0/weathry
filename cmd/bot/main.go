@@ -84,7 +84,7 @@ func main() {
 		panic(err)
 	}
 
-	usersClient := users.NewUsersClient(db)
+	usersClient := users.NewDBClient(db)
 
 	r := gin.New()
 	r.Use(middleware.Recovery(errorTgramClient, myTelegramChatID))
