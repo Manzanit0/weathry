@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -32,6 +33,21 @@ type dbLocation struct {
 	UpdatedAt time.Time `db:"updated_at"`
 }
 
+type dbHome struct {
+	Name string `db:"name"`
+
+	Latitude  *float64 `db:"latitude"`
+	Longitude *float64 `db:"longitude"`
+
+	Country     *string `db:"country"`
+	CountryCode *string `db:"country_code"`
+
+	CreatedAt time.Time `db:"created_at"`
+	UpdatedAt time.Time `db:"updated_at"`
+
+	userID string `db:"user_id"`
+}
+
 type HomeLocation struct {
 	Location
 	UserID int
@@ -44,6 +60,7 @@ type Repository interface {
 
 	GetHome(ctx context.Context, userID int) (*HomeLocation, error)
 	SetHome(ctx context.Context, userID int, location *Location) error
+	ListHomes(ctx context.Context) ([]*HomeLocation, error)
 }
 
 type pgRepo struct {
@@ -163,6 +180,42 @@ func (r *pgRepo) GetLocation(ctx context.Context, name string) (*Location, error
 	}
 
 	return u.Map(), nil
+}
+
+func (r *pgRepo) ListHomes(ctx context.Context) ([]*HomeLocation, error) {
+	var homes []*dbHome
+
+	query := `
+	SELECT lo.*, ul.user_id
+	FROM user_locations ul
+	INNER JOIN locations lo ON lo.name = ul.location_name
+	WHERE ul.is_home = True;`
+
+	err := r.db.SelectContext(ctx, &homes, query)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("select user_location: %w", err)
+	}
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+
+	homesx := make([]*HomeLocation, len(homes))
+	for i := range homes {
+		uid, _ := strconv.Atoi(homes[i].userID)
+		homesx[i] = &HomeLocation{
+			Location: Location{
+				Latitude:    *homes[i].Latitude,
+				Longitude:   *homes[i].Longitude,
+				Name:        homes[i].Name,
+				Country:     *homes[i].Country,
+				CountryCode: *homes[i].CountryCode,
+			},
+			UserID: uid,
+		}
+	}
+
+	return homesx, nil
 }
 
 func (u dbLocation) Map() *Location {

@@ -5,20 +5,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/manzanit0/weathry/cmd/bot/location"
 	"github.com/manzanit0/weathry/pkg/env"
 	"github.com/manzanit0/weathry/pkg/geocode"
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
 	"golang.org/x/exp/slog"
 )
-
-const (
-	name     = "Fresnedillas de la Oliva, ES"
-	lat, lon = 40.489117, -4.169078
-)
-
-// London
-// const lat2, lon2 = 51.5285582, -0.2416811
 
 type Pinger interface {
 	MonitorWeather(context.Context) error
@@ -32,6 +25,7 @@ type backgroundPinger struct {
 	forecaster weather.Client
 	geocoder   geocode.Client
 	telegram   tgram.Client
+	locations  location.Repository
 }
 
 func (p *backgroundPinger) MonitorWeather(ctx context.Context) error {
@@ -46,92 +40,97 @@ func (p *backgroundPinger) MonitorWeather(ctx context.Context) error {
 			// FIXME: deploys may fuck up this mechanic: if a deploy happens
 			// exactly at h:00... might miss the message.
 			if m == 0 && h == 19 {
-				err := p.PingRainyForecasts()
-				if err != nil {
-					slog.Error("ping rainy forcasts", "error", err.Error())
-				}
+				p.PingRainyForecasts()
 			}
 		}
 	}
 }
 
-func (p *backgroundPinger) PingRainyForecasts() error {
-	var message string
-	var sendMessage bool
-
-	forecasts, err := p.forecaster.GetHourlyForecast(lat, lon)
+func (p *backgroundPinger) PingRainyForecasts() {
+	homes, err := p.locations.ListHomes(context.Background())
 	if err != nil {
-		return fmt.Errorf("error requesting upcoming weather: %w", err)
+		slog.Error("list homes", "error", err.Error())
 	}
 
-	rainyForecast := FindNextRainyDay(forecasts)
-	if rainyForecast != nil {
-		if isToday(rainyForecast.DateTimeTS) {
-			message = "Heads up, it's going to be raining today!"
-		} else {
-			message = fmt.Sprintf("Hey 👋! I'm expecting rain next %s at around %s.",
-				rainyForecast.FormattedDate(),
-				rainyForecast.FormattedTime())
-		}
+	for _, home := range homes {
+		var message string
+		var sendMessage bool
 
-		sendMessage = true
-	}
-
-	highTempForecast := FindNextHighTemperature(forecasts)
-	if highTempForecast != nil {
-		if len(message) > 0 {
-			message += "\nAlso, on a separate note, "
-		} else {
-			message = "Hi! Just letting you know that "
-		}
-
-		if isToday(highTempForecast.DateTimeTS) {
-			message += fmt.Sprintf("it's going to be pretty hot today with a max of %.2fºC! 🔥",
-				highTempForecast.MaximumTemperature)
-		} else {
-			message += fmt.Sprintf("next %s temperatures are going to rise all the way to %.2fºC! 🔥",
-				highTempForecast.FormattedDateTime(),
-				highTempForecast.MaximumTemperature)
-		}
-	}
-
-	lowTempForecast := FindNextLowTemperature(forecasts)
-	if lowTempForecast != nil {
-		if len(message) > 0 {
-			message += "\nAlso, on a separate note, "
-		} else {
-			message = "Hi! Just letting you know that "
-		}
-
-		if isToday(lowTempForecast.DateTimeTS) {
-			message += fmt.Sprintf("it's going to be pretty cold today with a min of %.2fºC! ❄️ ",
-				lowTempForecast.MinimumTemperature)
-		} else {
-			message += fmt.Sprintf("next %s temperatures are going to decrease the way to %.2fºC! ❄️ ",
-				lowTempForecast.FormattedDateTime(),
-				lowTempForecast.MinimumTemperature)
-		}
-	}
-
-	if sendMessage {
-		myChatID, err := env.MyTelegramChatID()
+		forecasts, err := p.forecaster.GetHourlyForecast(home.Latitude, home.Longitude)
 		if err != nil {
-			return fmt.Errorf("unexpected error getting chat_id from environment: %w", err)
+			slog.Error("error requesting upcoming weather", "error", err.Error())
+			continue
 		}
 
-		res := tgram.SendMessageRequest{Text: message, ChatID: myChatID}
-		res.AddKeyboardElementRow([]tgram.InlineKeyboardElement{
-			{Text: "⏰ Check hourly forecast", CallbackData: fmt.Sprintf("hourly:%f,%f", lat, lon)},
-			{Text: "📆 Check daily forecast", CallbackData: fmt.Sprintf("daily:%f,%f", lat, lon)},
-		})
+		rainyForecast := FindNextRainyDay(forecasts)
+		if rainyForecast != nil {
+			if isToday(rainyForecast.DateTimeTS) {
+				message = "Heads up, it's going to be raining today!"
+			} else {
+				message = fmt.Sprintf("Hey 👋! I'm expecting rain next %s at around %s.",
+					rainyForecast.FormattedDate(),
+					rainyForecast.FormattedTime())
+			}
 
-		err = p.telegram.SendMessage(res)
-		if err != nil {
-			return fmt.Errorf("failed to send rainy update to telegram: %w", err)
+			sendMessage = true
+		}
+
+		highTempForecast := FindNextHighTemperature(forecasts)
+		if highTempForecast != nil {
+			if len(message) > 0 {
+				message += "\nAlso, on a separate note, "
+			} else {
+				message = "Hi! Just letting you know that "
+			}
+
+			if isToday(highTempForecast.DateTimeTS) {
+				message += fmt.Sprintf("it's going to be pretty hot today with a max of %.2fºC! 🔥",
+					highTempForecast.MaximumTemperature)
+			} else {
+				message += fmt.Sprintf("next %s temperatures are going to rise all the way to %.2fºC! 🔥",
+					highTempForecast.FormattedDateTime(),
+					highTempForecast.MaximumTemperature)
+			}
+		}
+
+		lowTempForecast := FindNextLowTemperature(forecasts)
+		if lowTempForecast != nil {
+			if len(message) > 0 {
+				message += "\nAlso, on a separate note, "
+			} else {
+				message = "Hi! Just letting you know that "
+			}
+
+			if isToday(lowTempForecast.DateTimeTS) {
+				message += fmt.Sprintf("it's going to be pretty cold today with a min of %.2fºC! ❄️ ",
+					lowTempForecast.MinimumTemperature)
+			} else {
+				message += fmt.Sprintf("next %s temperatures are going to decrease the way to %.2fºC! ❄️ ",
+					lowTempForecast.FormattedDateTime(),
+					lowTempForecast.MinimumTemperature)
+			}
+		}
+
+		if sendMessage {
+			myChatID, err := env.MyTelegramChatID()
+			if err != nil {
+				slog.Error("unexpected error getting chat_id from environment", "error", err.Error())
+				continue
+			}
+
+			res := tgram.SendMessageRequest{Text: message, ChatID: myChatID}
+			res.AddKeyboardElementRow([]tgram.InlineKeyboardElement{
+				{Text: "⏰ Check hourly forecast", CallbackData: fmt.Sprintf("hourly:%f,%f", home.Latitude, home.Longitude)},
+				{Text: "📆 Check daily forecast", CallbackData: fmt.Sprintf("daily:%f,%f", home.Latitude, home.Longitude)},
+			})
+
+			err = p.telegram.SendMessage(res)
+			if err != nil {
+				slog.Error("failed to send rainy update to telegram", "error", err.Error())
+				continue
+			}
 		}
 	}
-
-	return nil
 }
 
 func FindNextRainyDay(forecasts []*weather.Forecast) *weather.Forecast {
