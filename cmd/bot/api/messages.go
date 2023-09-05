@@ -17,10 +17,10 @@ import (
 )
 
 type MessageController struct {
-	geocoder       geocode.Client
-	convos         *conversation.ConvoRepository
-	locations      location.Repository
-	weatherService *services.WeatherService
+	geocoder   geocode.Client
+	convos     *conversation.ConvoRepository
+	locations  location.Repository
+	forecaster *services.WeatherService
 }
 
 func NewMessageController(l geocode.Client, w weather.Client, c *conversation.ConvoRepository, ll location.Repository) *MessageController {
@@ -36,7 +36,7 @@ func (g *MessageController) ProcessDailyCommand(ctx context.Context, p *tgram.We
 	}
 
 	query := tgram.ExtractCommandQuery(p.Message.Text)
-	message, err := g.weatherService.GetDailyWeatherByLocationName(query)
+	message, err := g.forecaster.GetDailyWeatherByLocationName(query)
 	if err != nil {
 		slog.Error("get upcoming weather", "error", err.Error())
 		return msg.MsgUnableToGetReport
@@ -53,7 +53,7 @@ func (g *MessageController) ProcessHourlyCommand(ctx context.Context, p *tgram.W
 	}
 
 	query := tgram.ExtractCommandQuery(p.Message.Text)
-	message, err := g.weatherService.GetHourlyWeatherByLocationName(query)
+	message, err := g.forecaster.GetHourlyWeatherByLocationName(query)
 	if err != nil {
 		slog.Error("get upcoming weather", "error", err.Error())
 		return msg.MsgUnableToGetReport
@@ -147,9 +147,9 @@ func (g *MessageController) ProcessNonCommand(ctx context.Context, p *tgram.Webh
 func (g *MessageController) forecastFromQuestion(question, response string) (string, error) {
 	switch question {
 	case conversation.QuestionHourlyWeather:
-		return g.weatherService.GetHourlyWeatherByLocationName(response)
+		return g.forecaster.GetHourlyWeatherByLocationName(response)
 	case conversation.QuestionDailyWeather:
-		return g.weatherService.GetDailyWeatherByLocationName(response)
+		return g.forecaster.GetDailyWeatherByLocationName(response)
 	default:
 		return "hey!", nil
 	}
