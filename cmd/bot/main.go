@@ -202,14 +202,16 @@ func telegramWebhookController(
 
 		if query := tgram.ExtractCommandQuery(p.Message.Text); len(query) == 0 {
 			question, prompt := getQuestionAndPrompt(p.Message.Text)
-			_, err := convos.AddQuestion(ctx, fmt.Sprint(p.GetFromID()), question)
-			if err != nil {
-				c.JSON(200, webhookResponse(p, msg.MsgUnexpectedError))
+			if question != "" {
+				_, err := convos.AddQuestion(ctx, fmt.Sprint(p.GetFromID()), question)
+				if err != nil {
+					c.JSON(200, webhookResponse(p, msg.MsgUnexpectedError))
+					return
+				}
+
+				c.JSON(200, webhookResponse(p, prompt))
 				return
 			}
-
-			c.JSON(200, webhookResponse(p, prompt))
-			return
 		}
 
 		var message string
@@ -233,16 +235,16 @@ func telegramWebhookController(
 	}
 }
 
-func getQuestionAndPrompt(cmd string) (string, string) {
-	switch cmd {
+func getQuestionAndPrompt(text string) (string, string) {
+	switch text {
 	case "/daily":
-		return conversation.QuestionHourlyWeather, msg.MsgLocationQuestionDay
+		return conversation.QuestionDailyWeather, msg.MsgLocationQuestionDay
 	case "/hourly":
-		return conversation.QuestionDailyWeather, msg.MsgLocationQuestionWeek
+		return conversation.QuestionHourlyWeather, msg.MsgLocationQuestionWeek
 	case "/home":
 		return conversation.QuestionHome, msg.MsgHomeQuestion
 	default:
-		return "", "'"
+		return "", ""
 	}
 }
 

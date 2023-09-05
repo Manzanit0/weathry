@@ -120,37 +120,51 @@ func (g *MessageController) setHome(ctx context.Context, p *tgram.WebhookRequest
 
 func (g *MessageController) ProcessNonCommand(ctx context.Context, p *tgram.WebhookRequest) string {
 	convo, err := g.convos.Find(ctx, fmt.Sprint(p.GetFromID()))
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return msg.MsgUnexpectedError
-	} else if errors.Is(err, sql.ErrNoRows) || (convo != nil && convo.Answered) {
+
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		slog.Error("find conversation", "error", err.Error())
 		return msg.MsgUnknownText
-	}
 
-	if convo.LastQuestionAsked == conversation.QuestionHome {
+	case err != nil:
+		slog.Error("find conversation", "error", err.Error())
+		return msg.MsgUnexpectedError
+
+	case (convo != nil && convo.Answered):
+		return msg.MsgUnknownText
+
+	case convo.LastQuestionAsked == conversation.QuestionHome:
 		return g.setHome(ctx, p, p.Message.Text)
-	}
 
-	message, err := g.forecastFromQuestion(convo.LastQuestionAsked, p.Message.Text)
-	if err != nil {
-		slog.Error("get forecast from question", "error", err.Error())
-		return msg.MsgUnableToGetReport
-	}
+	case convo.LastQuestionAsked == conversation.QuestionHourlyWeather:
+		err = g.convos.MarkQuestionAnswered(ctx, fmt.Sprint(p.GetFromID()))
+		if err != nil {
+			slog.Error("unable to mark question as answered", "error", err.Error())
+		}
 
-	err = g.convos.MarkQuestionAnswered(ctx, fmt.Sprint(p.GetFromID()))
-	if err != nil {
-		slog.Error("unable to mark question as answered", "error", err.Error())
-	}
+		message, err := g.forecaster.GetHourlyWeatherByLocationName(p.Message.Text)
+		if err != nil {
+			slog.Error("get forecast from question", "error", err.Error())
+			return msg.MsgUnableToGetReport
+		}
 
-	return message
-}
+		return message
 
-func (g *MessageController) forecastFromQuestion(question, response string) (string, error) {
-	switch question {
-	case conversation.QuestionHourlyWeather:
-		return g.forecaster.GetHourlyWeatherByLocationName(response)
-	case conversation.QuestionDailyWeather:
-		return g.forecaster.GetDailyWeatherByLocationName(response)
+	case convo.LastQuestionAsked == conversation.QuestionDailyWeather:
+		err = g.convos.MarkQuestionAnswered(ctx, fmt.Sprint(p.GetFromID()))
+		if err != nil {
+			slog.Error("unable to mark question as answered", "error", err.Error())
+		}
+
+		message, err := g.forecaster.GetDailyWeatherByLocationName(p.Message.Text)
+		if err != nil {
+			slog.Error("get forecast from question", "error", err.Error())
+			return msg.MsgUnableToGetReport
+		}
+
+		return message
+
 	default:
-		return "hey!", nil
+		return msg.MsgUnknownText
 	}
 }
