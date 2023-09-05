@@ -115,7 +115,7 @@ func (g *MessageController) setHome(ctx context.Context, p *tgram.WebhookRequest
 		return msg.MsgUnableToGetReport
 	}
 
-	return fmt.Sprintf(`Successfully set %s as your home! I\\'ll now watch it for any weather changes and let you know 🙂`, locationName)
+	return fmt.Sprintf("Successfully set %s as your home! I\\'ll now watch it for any weather changes and let you know 🙂", locationName)
 }
 
 func (g *MessageController) ProcessNonCommand(ctx context.Context, p *tgram.WebhookRequest) string {
@@ -134,6 +134,11 @@ func (g *MessageController) ProcessNonCommand(ctx context.Context, p *tgram.Webh
 		return msg.MsgUnknownText
 
 	case convo.LastQuestionAsked == conversation.QuestionHome:
+		err = g.convos.MarkQuestionAnswered(ctx, fmt.Sprint(p.GetFromID()))
+		if err != nil {
+			slog.Error("unable to mark question as answered", "error", err.Error())
+		}
+
 		return g.setHome(ctx, p, p.Message.Text)
 
 	case convo.LastQuestionAsked == conversation.QuestionHourlyWeather:
