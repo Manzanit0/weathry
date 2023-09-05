@@ -10,12 +10,12 @@ import (
 )
 
 type WeatherService struct {
-	geocoder      geocode.Client
-	weatherClient weather.Client
+	geocoder   geocode.Client
+	forecaster weather.Client
 }
 
 func NewWeatherService(l geocode.Client, w weather.Client) *WeatherService {
-	return &WeatherService{geocoder: l, weatherClient: w}
+	return &WeatherService{geocoder: l, forecaster: w}
 }
 
 func (a *WeatherService) GetDailyWeatherByLocationName(locationName string) (string, error) {
@@ -24,7 +24,7 @@ func (a *WeatherService) GetDailyWeatherByLocationName(locationName string) (str
 		return "", fmt.Errorf("find location: %w", err)
 	}
 
-	forecasts, err := a.weatherClient.GetUpcomingWeather(location.Latitude, location.Longitude)
+	forecasts, err := a.forecaster.GetUpcomingWeather(location.Latitude, location.Longitude)
 	if err != nil {
 		return "", fmt.Errorf("get weather: %w", err)
 	}
@@ -38,7 +38,7 @@ func (a *WeatherService) GetDailyWeatherByCoordinates(latitude, longitude float6
 		return "", fmt.Errorf("find location: %w", err)
 	}
 
-	forecasts, err := a.weatherClient.GetUpcomingWeather(location.Latitude, location.Longitude)
+	forecasts, err := a.forecaster.GetUpcomingWeather(location.Latitude, location.Longitude)
 	if err != nil {
 		return "", fmt.Errorf("get weather: %w", err)
 	}
@@ -52,7 +52,7 @@ func (a *WeatherService) GetHourlyWeatherByLocationName(locationName string) (st
 		return "", fmt.Errorf("find location: %w", err)
 	}
 
-	return getHourlyWeather(a.weatherClient, MapLocation(location))
+	return getHourlyWeather(a.forecaster, MapLocation(location))
 }
 
 func (a *WeatherService) GetHourlyWeatherByCoordinates(latitude, longitude float64) (string, error) {
@@ -61,7 +61,7 @@ func (a *WeatherService) GetHourlyWeatherByCoordinates(latitude, longitude float
 		return "", fmt.Errorf("find location: %w", err)
 	}
 
-	return getHourlyWeather(a.weatherClient, MapLocation(location))
+	return getHourlyWeather(a.forecaster, MapLocation(location))
 }
 
 func getHourlyWeather(weatherClient weather.Client, location *location.Location) (string, error) {
