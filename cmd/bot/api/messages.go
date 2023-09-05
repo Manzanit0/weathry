@@ -115,7 +115,7 @@ func (g *MessageController) setHome(ctx context.Context, p *tgram.WebhookRequest
 		return msg.MsgUnableToGetReport
 	}
 
-	return fmt.Sprintf(`Successfully set %s as your home! I'll now watch it for any weather changes and let you know 🙂`, locationName)
+	return fmt.Sprintf(`Successfully set %s as your home! I\\'ll now watch it for any weather changes and let you know 🙂`, locationName)
 }
 
 func (g *MessageController) ProcessNonCommand(ctx context.Context, p *tgram.WebhookRequest) string {
