@@ -25,13 +25,13 @@ type Pinger interface {
 }
 
 func NewBackgroundPinger(w weather.Client, l geocode.Client, t tgram.Client) *backgroundPinger {
-	return &backgroundPinger{w: w, l: l, t: t}
+	return &backgroundPinger{forecaster: w, geocoder: l, telegram: t}
 }
 
 type backgroundPinger struct {
-	w weather.Client
-	l geocode.Client
-	t tgram.Client
+	forecaster weather.Client
+	geocoder   geocode.Client
+	telegram   tgram.Client
 }
 
 func (p *backgroundPinger) MonitorWeather(ctx context.Context) error {
@@ -59,7 +59,7 @@ func (p *backgroundPinger) PingRainyForecasts() error {
 	var message string
 	var sendMessage bool
 
-	forecasts, err := p.w.GetHourlyForecast(lat, lon)
+	forecasts, err := p.forecaster.GetHourlyForecast(lat, lon)
 	if err != nil {
 		return fmt.Errorf("error requesting upcoming weather: %w", err)
 	}
@@ -125,7 +125,7 @@ func (p *backgroundPinger) PingRainyForecasts() error {
 			{Text: "📆 Check daily forecast", CallbackData: fmt.Sprintf("daily:%f,%f", lat, lon)},
 		})
 
-		err = p.t.SendMessage(res)
+		err = p.telegram.SendMessage(res)
 		if err != nil {
 			return fmt.Errorf("failed to send rainy update to telegram: %w", err)
 		}
