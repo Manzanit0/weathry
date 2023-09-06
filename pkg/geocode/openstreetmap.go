@@ -55,7 +55,7 @@ func (c *oc) ReverseGeocode(lat, lon float64) (*Location, error) {
 	return &Location{
 		Latitude:    lat,
 		Longitude:   lon,
-		Name:        address.FormattedAddress,
+		Name:        fmt.Sprintf("%s, %s", address.City, address.Country),
 		Country:     address.Country,
 		CountryCode: address.CountryCode,
 	}, nil
