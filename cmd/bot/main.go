@@ -88,7 +88,7 @@ func main() {
 
 	r := gin.New()
 	r.Use(middleware.Recovery(errorTgramClient, myTelegramChatID))
-	r.Use(middleware.Logging())
+	r.Use(middleware.Logging(false))
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
