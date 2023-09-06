@@ -96,10 +96,7 @@ func main() {
 		})
 	})
 
-	// To avoid other bots, or even actual humans, using my API quotas, just
-	// authorised the users you want to use the BOT.
-	authorisedUsers := strings.Split(os.Getenv("TELEGRAM_AUTHORISED_USERS"), ",")
-	r.Use(middleware.TelegramAuth(usersClient, authorisedUsers...))
+	r.Use(middleware.TelegramAuth(usersClient))
 	r.POST("/telegram/webhook", telegramWebhookController(geocoder, owmClient, &convos, locations))
 
 	// background job to ping users on weather changes

@@ -24,7 +24,7 @@ func TelegramAuth(usersClient UsersClient, authorisedUsers ...string) gin.Handle
 			return
 		}
 
-		var authorised bool
+		authorised := len(authorisedUsers) == 0
 		for _, username := range authorisedUsers {
 			if strings.EqualFold(r.GetFromUsername(), username) {
 				authorised = true
