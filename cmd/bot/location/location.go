@@ -45,7 +45,7 @@ type dbHome struct {
 	CreatedAt time.Time `db:"created_at"`
 	UpdatedAt time.Time `db:"updated_at"`
 
-	userID string `db:"user_id"`
+	UserID string `db:"user_id"`
 }
 
 type HomeLocation struct {
@@ -183,7 +183,7 @@ func (r *pgRepo) GetLocation(ctx context.Context, name string) (*Location, error
 }
 
 func (r *pgRepo) ListHomes(ctx context.Context) ([]*HomeLocation, error) {
-	var homes []*dbHome
+	var homes []dbHome
 
 	query := `
 	SELECT lo.*, ul.user_id
@@ -202,7 +202,7 @@ func (r *pgRepo) ListHomes(ctx context.Context) ([]*HomeLocation, error) {
 
 	homesx := make([]*HomeLocation, len(homes))
 	for i := range homes {
-		uid, _ := strconv.Atoi(homes[i].userID)
+		uid, _ := strconv.Atoi(homes[i].UserID)
 		homesx[i] = &HomeLocation{
 			Location: Location{
 				Latitude:    *homes[i].Latitude,

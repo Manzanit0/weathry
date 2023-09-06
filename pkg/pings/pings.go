@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/manzanit0/weathry/cmd/bot/location"
-	"github.com/manzanit0/weathry/pkg/env"
 	"github.com/manzanit0/weathry/pkg/geocode"
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
@@ -17,8 +16,8 @@ type Pinger interface {
 	MonitorWeather(context.Context) error
 }
 
-func NewBackgroundPinger(w weather.Client, l geocode.Client, t tgram.Client) *backgroundPinger {
-	return &backgroundPinger{forecaster: w, geocoder: l, telegram: t}
+func NewBackgroundPinger(f weather.Client, g geocode.Client, t tgram.Client, l location.Repository) *backgroundPinger {
+	return &backgroundPinger{forecaster: f, geocoder: g, telegram: t, locations: l}
 }
 
 type backgroundPinger struct {
@@ -54,7 +53,6 @@ func (p *backgroundPinger) PingRainyForecasts() {
 
 	for _, home := range homes {
 		var message string
-		var sendMessage bool
 
 		forecasts, err := p.forecaster.GetHourlyForecast(home.Latitude, home.Longitude)
 		if err != nil {
@@ -65,14 +63,12 @@ func (p *backgroundPinger) PingRainyForecasts() {
 		rainyForecast := FindNextRainyDay(forecasts)
 		if rainyForecast != nil {
 			if isToday(rainyForecast.DateTimeTS) {
-				message = "Heads up, it's going to be raining today!"
+				message = "Heads up, it's going to be raining today at %s!"
 			} else {
 				message = fmt.Sprintf("Hey 👋! I'm expecting rain next %s at around %s.",
 					rainyForecast.FormattedDate(),
 					rainyForecast.FormattedTime())
 			}
-
-			sendMessage = true
 		}
 
 		highTempForecast := FindNextHighTemperature(forecasts)
@@ -111,24 +107,20 @@ func (p *backgroundPinger) PingRainyForecasts() {
 			}
 		}
 
-		if sendMessage {
-			myChatID, err := env.MyTelegramChatID()
-			if err != nil {
-				slog.Error("unexpected error getting chat_id from environment", "error", err.Error())
-				continue
-			}
+		if message == "" {
+			continue
+		}
 
-			res := tgram.SendMessageRequest{Text: message, ChatID: myChatID}
-			res.AddKeyboardElementRow([]tgram.InlineKeyboardElement{
-				{Text: "⏰ Check hourly forecast", CallbackData: fmt.Sprintf("hourly:%f,%f", home.Latitude, home.Longitude)},
-				{Text: "📆 Check daily forecast", CallbackData: fmt.Sprintf("daily:%f,%f", home.Latitude, home.Longitude)},
-			})
+		res := tgram.SendMessageRequest{Text: message, ChatID: int64(home.UserID)}
+		res.AddKeyboardElementRow([]tgram.InlineKeyboardElement{
+			{Text: "⏰ Check hourly forecast", CallbackData: fmt.Sprintf("hourly:%f,%f", home.Latitude, home.Longitude)},
+			{Text: "📆 Check daily forecast", CallbackData: fmt.Sprintf("daily:%f,%f", home.Latitude, home.Longitude)},
+		})
 
-			err = p.telegram.SendMessage(res)
-			if err != nil {
-				slog.Error("failed to send rainy update to telegram", "error", err.Error())
-				continue
-			}
+		err = p.telegram.SendMessage(res)
+		if err != nil {
+			slog.Error("failed to send rainy update to telegram", "error", err.Error())
+			continue
 		}
 	}
 }

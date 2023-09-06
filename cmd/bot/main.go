@@ -113,7 +113,7 @@ func main() {
 		defer close(pingDone)
 		slog.Info("starting pinger")
 
-		pinger := pings.NewBackgroundPinger(owmClient, geocoder, tgramClient)
+		pinger := pings.NewBackgroundPinger(owmClient, geocoder, tgramClient, locations)
 		if err := pinger.MonitorWeather(ctx); err != nil {
 			if errors.Is(err, context.Canceled) {
 				slog.Info("pinger shutdown gracefully")
