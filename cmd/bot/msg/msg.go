@@ -135,7 +135,7 @@ func NewForecastTableMessage(loc *location.Location, f []*weather.Forecast, opts
 			dt = v.FormattedTime()
 		}
 
-		table.Append([]string{dt, fmt.Sprintf("%s  \n%s", v.Description, temp)})
+		table.Append([]string{dt, fmt.Sprintf("%s\n%s", v.Description, temp)})
 	}
 
 	table.SetRowLine(true)
