@@ -226,6 +226,9 @@ func telegramWebhookController(
 		case strings.HasPrefix(p.Message.Text, "/home"):
 			message = messageCtrl.ProcessHomeCommand(ctx, p)
 
+		case strings.HasPrefix(p.Message.Text, "/help"):
+			message = fmt.Sprintf(msg.MsgHelp, p.GetFromFirstName())
+
 		default:
 			message = messageCtrl.ProcessNonCommand(ctx, p)
 		}

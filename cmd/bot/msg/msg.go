@@ -16,10 +16,11 @@ const (
 	MsgLocationQuestionWeek    = "What location do you want me to check this week\\'s weather for?"
 	MsgLocationQuestionDay     = "What location do you want me to check today\\'s weather for?"
 	MsgHomeQuestion            = "What location do you want to save as your home?"
-	MsgUnknownText             = "I\\'m not sure what you mean with that\\. Try hitting me up with the /hourly or /daily commands if you need me to check the weather for you \\:\\)"
+	MsgUnknownText             = "I\\'m not sure what you mean with that\\. Try hitting me up with the /hourly or /daily commands if you need me to check the weather for you ☔️"
 	MsgUnableToGetReport       = "I\\'m sorry, the network isn\\'t doing it\\'s best job and I can\\'t get your report just now\\. Please try again in a bit\\."
 	MsgUnsupportedInteraction  = "Unsupported type of interaction"
 	MsgUnexpectedError         = "Whops\\! Something\\'s not working like it should\\. Try again in a bit\\."
+	MsgHelp                    = "👋 Hi %s\\! My name is weathry, great to meet you\\!\n\nI\\'ve been programmed to pretty much help you with any of your weather needs\\. These are some of the things I can do\\:\n\n1\\. /hourly, Check the hourly forcast for you\\.\n2\\. /daily, Check the whole week's forcast for you\\.\n3\\. /home, Keep track of your home so I can send you timely reminders of when there's going to be a weather change\\.\n\nWith regards to the reminders I can send, I just track low and high temperatures and rain\\. This means that if the temperature drops or increases too much in an upcoming day, or it\\'s simply going to rain, then I\\'ll let you know\\."
 )
 
 func NewEmojifiedDailyMessage(f []*weather.Forecast) string {
