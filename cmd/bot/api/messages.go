@@ -2,8 +2,6 @@ package api
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/manzanit0/weathry/cmd/bot/conversation"
@@ -122,15 +120,15 @@ func (g *MessageController) ProcessNonCommand(ctx context.Context, p *tgram.Webh
 	convo, err := g.convos.Find(ctx, fmt.Sprint(p.GetFromID()))
 
 	switch {
-	case errors.Is(err, sql.ErrNoRows):
-		slog.Error("find conversation", "error", err.Error())
-		return msg.MsgUnknownText
-
 	case err != nil:
 		slog.Error("find conversation", "error", err.Error())
 		return msg.MsgUnexpectedError
 
-	case (convo != nil && convo.Answered):
+	case convo == nil:
+		slog.Error("find conversation", "error", err.Error())
+		return msg.MsgUnknownText
+
+	case convo != nil && convo.Answered:
 		return msg.MsgUnknownText
 
 	case convo.LastQuestionAsked == conversation.QuestionHome:
