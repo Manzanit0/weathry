@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -21,7 +20,6 @@ import (
 	"github.com/manzanit0/weathry/pkg/env"
 	"github.com/manzanit0/weathry/pkg/geocode"
 	"github.com/manzanit0/weathry/pkg/middleware"
-	"github.com/manzanit0/weathry/pkg/pings"
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
 	"github.com/manzanit0/weathry/pkg/whttp"
@@ -69,11 +67,6 @@ func main() {
 		panic(err)
 	}
 
-	tgramClient, err := newTelegramClient()
-	if err != nil {
-		panic(err)
-	}
-
 	errorTgramClient, err := env.NewErroryTgramClient()
 	if err != nil {
 		panic(err)
@@ -102,25 +95,6 @@ func main() {
 	// background job to ping users on weather changes
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-
-	pingDone := make(chan struct{})
-
-	go func() {
-		defer middleware.Recover(errorTgramClient, myTelegramChatID)
-		defer close(pingDone)
-		slog.Info("starting pinger")
-
-		pinger := pings.NewBackgroundPinger(owmClient, geocoder, tgramClient, locations)
-		if err := pinger.MonitorWeather(ctx); err != nil {
-			if errors.Is(err, context.Canceled) {
-				slog.Info("pinger shutdown gracefully")
-				return
-			}
-
-			slog.Error("pinger shutdown abruptly", "error", err.Error())
-			stop()
-		}
-	}()
 
 	var port string
 	if port = os.Getenv("PORT"); port == "" {
@@ -151,9 +125,6 @@ func main() {
 	}
 
 	slog.Info("server exited")
-
-	<-pingDone
-	slog.Info("pinger exited")
 }
 
 // @see https://core.telegram.org/bots/api#markdownv2-style
@@ -259,21 +230,4 @@ func newWeatherClient() (weather.Client, error) {
 
 func newGeocoder() (geocode.Client, error) {
 	return geocode.NewOpenstreetmapClient(), nil
-	// var positionStackAPIKey string
-	// if positionStackAPIKey = os.Getenv("POSITIONSTACK_API_KEY"); positionStackAPIKey == "" {
-	// 	return nil, fmt.Errorf("missing POSITIONSTACK_API_KEY environment variable. Please check your environment.")
-	// }
-
-	// httpClient := whttp.NewLoggingClient()
-	// return location.NewPositionStackClient(httpClient, positionStackAPIKey), nil
-}
-
-func newTelegramClient() (tgram.Client, error) {
-	var telegramBotToken string
-	if telegramBotToken = os.Getenv("TELEGRAM_BOT_TOKEN"); telegramBotToken == "" {
-		return nil, fmt.Errorf("missing TELEGRAM_BOT_TOKEN environment variable. Please check your environment.")
-	}
-
-	httpClient := whttp.NewLoggingClient()
-	return tgram.NewClient(httpClient, telegramBotToken), nil
 }

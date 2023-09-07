@@ -28,27 +28,13 @@ type backgroundPinger struct {
 }
 
 func (p *backgroundPinger) MonitorWeather(ctx context.Context) error {
-	ticker := time.NewTicker(time.Minute)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			h, m, _ := time.Now().Clock()
-			// FIXME: deploys may fuck up this mechanic: if a deploy happens
-			// exactly at h:00... might miss the message.
-			if m == 0 && h == 19 {
-				p.PingRainyForecasts()
-			}
-		}
-	}
+	return p.PingRainyForecasts()
 }
 
-func (p *backgroundPinger) PingRainyForecasts() {
+func (p *backgroundPinger) PingRainyForecasts() error {
 	homes, err := p.locations.ListHomes(context.Background())
 	if err != nil {
-		slog.Error("list homes", "error", err.Error())
+		return fmt.Errorf("list homes: %w", err)
 	}
 
 	for _, home := range homes {
@@ -123,6 +109,8 @@ func (p *backgroundPinger) PingRainyForecasts() {
 			continue
 		}
 	}
+
+	return nil
 }
 
 func FindNextRainyDay(forecasts []*weather.Forecast) *weather.Forecast {
