@@ -17,6 +17,8 @@ import (
 	"github.com/manzanit0/weathry/pkg/weather"
 	"github.com/manzanit0/weathry/pkg/whttp"
 	"golang.org/x/exp/slog"
+
+	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
 func init() {
