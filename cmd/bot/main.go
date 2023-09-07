@@ -231,7 +231,6 @@ func telegramWebhookController(
 		}
 
 		c.JSON(200, webhookResponse(p, message))
-		return
 	}
 }
 
