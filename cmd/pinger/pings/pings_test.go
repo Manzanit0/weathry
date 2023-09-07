@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/manzanit0/weathry/pkg/pings"
+	"github.com/manzanit0/weathry/cmd/pinger/pings"
 	"github.com/manzanit0/weathry/pkg/weather"
 )
 
