@@ -125,7 +125,6 @@ func (g *MessageController) ProcessNonCommand(ctx context.Context, p *tgram.Webh
 		return msg.MsgUnexpectedError
 
 	case convo == nil:
-		slog.Error("find conversation", "error", err.Error())
 		return msg.MsgUnknownText
 
 	case convo != nil && convo.Answered:
