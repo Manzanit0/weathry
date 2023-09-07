@@ -47,7 +47,7 @@ func Logging(debug bool) gin.HandlerFunc {
 		}
 
 		if debug {
-			logFields = append(logFields, "http.response.body", string(w.body.Bytes()))
+			logFields = append(logFields, "http.response.body", w.body.String())
 		}
 
 		slog.Info("inbound request", logFields...)
