@@ -49,7 +49,7 @@ func (p *backgroundPinger) PingRainyForecasts() error {
 		rainyForecast := FindNextRainyDay(forecasts)
 		if rainyForecast != nil {
 			if isToday(rainyForecast.DateTimeTS) {
-				message = "Heads up, it's going to be raining today at %s!"
+				message = fmt.Sprintf("Heads up, it's going to be raining today at %s!", rainyForecast.FormattedTime())
 			} else {
 				message = fmt.Sprintf("Hey 👋! I'm expecting rain next %s at around %s.",
 					rainyForecast.FormattedDate(),
