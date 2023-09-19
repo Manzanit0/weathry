@@ -38,11 +38,16 @@ func (p *backgroundPinger) PingRainyForecasts() error {
 	}
 
 	for _, home := range homes {
+		logger := slog.
+			Default().
+			With("ctx.user_id", home.UserID).
+			With("ctx.home", home.Name)
+
 		var message string
 
 		forecasts, err := p.forecaster.GetHourlyForecast(home.Latitude, home.Longitude)
 		if err != nil {
-			slog.Error("error requesting upcoming weather", "error", err.Error())
+			logger.Error("error requesting upcoming weather", "error", err.Error())
 			continue
 		}
 
@@ -105,7 +110,7 @@ func (p *backgroundPinger) PingRainyForecasts() error {
 
 		err = p.telegram.SendMessage(res)
 		if err != nil {
-			slog.Error("failed to send rainy update to telegram", "error", err.Error())
+			logger.Error("failed to send rainy update to telegram", "error", err.Error())
 			continue
 		}
 	}
