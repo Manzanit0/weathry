@@ -1,20 +1,23 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"runtime"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/manzanit0/weathry/pkg/tgram"
-	"golang.org/x/exp/slog"
 )
 
 func Recovery(t tgram.Client, reportChat int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
-			Recover(t, reportChat)
+			if r := recover(); r != nil {
+				HandleRecover(c.Request.Context(), r, t, reportChat)
+			}
 			c.AbortWithStatus(http.StatusInternalServerError)
 		}()
 
@@ -22,21 +25,19 @@ func Recovery(t tgram.Client, reportChat int64) gin.HandlerFunc {
 	}
 }
 
-func Recover(t tgram.Client, reportChat int64) {
-	if r := recover(); r != nil {
-		callstack := getCallstack()
-		slog.Error(fmt.Sprint("recovered from panic", callstack))
+func HandleRecover(ctx context.Context, r any, t tgram.Client, reportChat int64) {
+	callstack := getCallstack()
+	slog.ErrorContext(ctx, "recovered from panic", "callstack", callstack)
 
-		if t != nil {
-			_ = t.SendMessage(tgram.SendMessageRequest{
-				ParseMode: tgram.ParseModeHTML,
-				ChatID:    reportChat,
-				Text: fmt.Sprintf(`<b>Recovered from panic: %v</b>
+	if t != nil {
+		_ = t.SendMessage(tgram.SendMessageRequest{
+			ParseMode: tgram.ParseModeHTML,
+			ChatID:    reportChat,
+			Text: fmt.Sprintf(`<b>Recovered from panic: %v</b>
 <code>%s</code>`, r, callstack),
-			})
-		}
-
+		})
 	}
+
 }
 
 func getCallstack() string {

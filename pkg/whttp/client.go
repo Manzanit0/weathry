@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"golang.org/x/exp/slog"
+	"log/slog"
 )
 
 type LoggingRoundTripper struct {

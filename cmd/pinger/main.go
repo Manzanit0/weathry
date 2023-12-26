@@ -4,27 +4,28 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
+
+	_ "github.com/jackc/pgx/v4/stdlib"
 
 	"github.com/manzanit0/weathry/cmd/bot/location"
 	"github.com/manzanit0/weathry/cmd/pinger/pings"
 	"github.com/manzanit0/weathry/pkg/env"
 	"github.com/manzanit0/weathry/pkg/geocode"
+	"github.com/manzanit0/weathry/pkg/logger"
 	"github.com/manzanit0/weathry/pkg/middleware"
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
 	"github.com/manzanit0/weathry/pkg/whttp"
-	"golang.org/x/exp/slog"
-
-	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
+const ServiceName = "pinger"
+
 func init() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	logger = logger.With("service", "pinger")
-	slog.SetDefault(logger)
+	logger.InitGlobalSlog(ServiceName)
 }
 
 func main() {
@@ -87,7 +88,11 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("get my telegram chat id: %w", err)
 	}
 
-	defer middleware.Recover(errorTgramClient, myTelegramChatID)
+	defer func() {
+		if r := recover(); r != nil {
+			middleware.HandleRecover(ctx, r, errorTgramClient, myTelegramChatID)
+		}
+	}()
 
 	pinger := pings.NewBackgroundPinger(owmClient, geocoder, tgramClient, locations)
 	if err := pinger.MonitorWeather(ctx); err != nil {

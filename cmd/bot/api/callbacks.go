@@ -4,12 +4,13 @@ import (
 	"strconv"
 	"strings"
 
+	"log/slog"
+
 	"github.com/manzanit0/weathry/cmd/bot/msg"
 	"github.com/manzanit0/weathry/cmd/bot/services"
 	"github.com/manzanit0/weathry/pkg/geocode"
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
-	"golang.org/x/exp/slog"
 )
 
 type CallbackController struct {

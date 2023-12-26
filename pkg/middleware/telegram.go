@@ -3,12 +3,12 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/manzanit0/weathry/pkg/tgram"
-	"golang.org/x/exp/slog"
 )
 
 const CtxKeyPayload = "gin.ctx.payload"

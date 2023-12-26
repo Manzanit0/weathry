@@ -1,7 +1,7 @@
-// +heroku goVersion go1.20
+// +heroku goVersion go1.21
 module github.com/manzanit0/weathry
 
-go 1.20
+go 1.21
 
 require (
 	github.com/codingsince1985/geo-golang v1.8.3
@@ -11,6 +11,7 @@ require (
 )
 
 require (
+	github.com/google/go-cmp v0.5.8 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgconn v1.12.1 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
@@ -18,6 +19,7 @@ require (
 	github.com/jackc/pgproto3/v2 v2.3.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
 	github.com/jackc/pgtype v1.11.0 // indirect
+	github.com/segmentio/ksuid v1.0.4 // indirect
 )
 
 require (
@@ -35,7 +37,6 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/ugorji/go/codec v1.2.7 // indirect
 	golang.org/x/crypto v0.0.0-20220507011949-2cf3adece122 // indirect
-	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect

@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"time"
 
+	"log/slog"
+
 	"github.com/manzanit0/weathry/cmd/bot/location"
 	"github.com/manzanit0/weathry/pkg/geocode"
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
-	"golang.org/x/exp/slog"
 )
 
 type Pinger interface {

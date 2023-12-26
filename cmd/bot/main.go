@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,6 +13,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/jackc/pgx/v4/stdlib"
+
 	"github.com/manzanit0/weathry/cmd/bot/api"
 	"github.com/manzanit0/weathry/cmd/bot/conversation"
 	"github.com/manzanit0/weathry/cmd/bot/location"
@@ -19,19 +22,17 @@ import (
 	"github.com/manzanit0/weathry/cmd/bot/users"
 	"github.com/manzanit0/weathry/pkg/env"
 	"github.com/manzanit0/weathry/pkg/geocode"
+	"github.com/manzanit0/weathry/pkg/logger"
 	"github.com/manzanit0/weathry/pkg/middleware"
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
 	"github.com/manzanit0/weathry/pkg/whttp"
-	"golang.org/x/exp/slog"
-
-	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
+const ServiceName = "bot"
+
 func init() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	logger = logger.With("service", "bot")
-	slog.SetDefault(logger)
+	logger.InitGlobalSlog(ServiceName)
 }
 
 func main() {
@@ -80,8 +81,9 @@ func main() {
 	usersClient := users.NewDBClient(db)
 
 	r := gin.New()
+	r.Use(middleware.TraceID())
 	r.Use(middleware.Recovery(errorTgramClient, myTelegramChatID))
-	r.Use(middleware.Logging(false))
+	r.Use(middleware.Logger(false))
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{

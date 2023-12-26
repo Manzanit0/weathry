@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"log/slog"
+
 	"github.com/manzanit0/weathry/cmd/bot/conversation"
 	"github.com/manzanit0/weathry/cmd/bot/location"
 	"github.com/manzanit0/weathry/cmd/bot/msg"
@@ -11,7 +13,6 @@ import (
 	"github.com/manzanit0/weathry/pkg/geocode"
 	"github.com/manzanit0/weathry/pkg/tgram"
 	"github.com/manzanit0/weathry/pkg/weather"
-	"golang.org/x/exp/slog"
 )
 
 type MessageController struct {
