@@ -33,7 +33,7 @@ func TelegramAuth(usersClient UsersClient, authorisedUsers ...string) gin.Handle
 		}
 
 		if !authorised {
-			slog.Info("unauthorised user", "username", r.GetFromUsername(), "chat_id", r.GetFromID())
+			slog.InfoContext(c.Request.Context(), "unauthorised user", "username", r.GetFromUsername(), "chat_id", r.GetFromID())
 			c.JSON(http.StatusOK, gin.H{
 				"method":  "sendMessage",
 				"chat_id": r.GetFromID(),
@@ -55,9 +55,9 @@ func TelegramAuth(usersClient UsersClient, authorisedUsers ...string) gin.Handle
 			LanguageCode: r.GetFromLanguageCode(),
 		})
 		if err != nil {
-			slog.Error("unable to track user", "error", err.Error(), "username", username, "chat_id", r.GetFromID())
+			slog.ErrorContext(c.Request.Context(), "unable to track user", "error", err.Error(), "username", username, "chat_id", r.GetFromID())
 		} else {
-			slog.Info("user tracked", "username", username, "chat_id", r.GetFromID())
+			slog.InfoContext(c.Request.Context(), "user tracked", "username", username, "chat_id", r.GetFromID())
 		}
 
 		c.Next()

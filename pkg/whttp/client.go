@@ -17,7 +17,7 @@ func (lrt LoggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 
 	res, err := lrt.Proxied.RoundTrip(req)
 	if err != nil {
-		slog.Error(err.Error())
+		slog.ErrorContext(req.Context(), err.Error())
 		return res, err
 	}
 
@@ -37,7 +37,7 @@ func (lrt LoggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	// res.Body = ioutil.NopCloser(b)
 
 	msg := fmt.Sprintf("%s %s://%s%s -> %d (%d ms)", req.Method, req.URL.Scheme, req.URL.Host, req.URL.Path, res.StatusCode, requestDuration)
-	slog.Info(msg,
+	slog.InfoContext(req.Context(), msg,
 		"http.request.duration_ms", requestDuration,
 		"http.request.method", req.Method,
 		"http.request.url.scheme", req.URL.Scheme,
